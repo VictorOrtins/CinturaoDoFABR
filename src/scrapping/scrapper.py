@@ -56,7 +56,7 @@ driver = webdriver.Chrome(
 
 all_games = pd.DataFrame()
 
-url = 'http://www.salaooval.com.br/campeonatos/bfa-2023/#tabela'
+url = 'http://www.salaooval.com.br/campeonatos/torneio-touchdown-2015/#tabela'
 
 driver.get(url)
 
@@ -66,24 +66,31 @@ WebDriverWait(driver, 30).until(
 )
 
 tabs = driver.find_elements(By.CSS_SELECTOR, "ul.vc_tta-tabs-list li span.vc_tta-title-text")
-print(len(tabs))
 
 for tab in tabs:
-    url = f'http://www.salaooval.com.br/campeonatos/bfa-2023/#{tab}'
+    url = f'http://www.salaooval.com.br/campeonatos/torneio-touchdown-2015/#{tab}'
 
     try:
         driver.get(url)
     except Exception:
         continue
 
-    WebDriverWait(driver, 30).until(
-        EC.presence_of_element_located((By.CLASS_NAME, "sp-event-list-format-homeaway"))
-    )
+    buttons = driver.find_elements(By.CSS_SELECTOR, ".paginate_button")
+    for button in buttons:
 
-    tables = driver.find_elements(By.CLASS_NAME, "sp-event-list-format-homeaway")
-    for table in tables:
-        df = get_table_df(table)
-        all_games = pd.concat([all_games, df], ignore_index=True)
+        try:
+            button.click()
+        except Exception:
+            continue
+
+        WebDriverWait(driver, 30).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "sp-event-list-format-homeaway"))
+        )
+
+        tables = driver.find_elements(By.CLASS_NAME, "sp-event-list-format-homeaway")
+        for table in tables:
+            df = get_table_df(table)
+            all_games = pd.concat([all_games, df], ignore_index=True)
 
 
     WebDriverWait(driver, 30).until(
