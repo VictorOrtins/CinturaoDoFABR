@@ -14,17 +14,6 @@ import pandas as pd
 import time
 
 
-# Existem diversas particularidades de cada liga
-# Muitas ligas tem seus jogos na própria aba da tabela. Não tem uma aba só pros jogos, por exempĺo
-
-# Muitas ligas também tem mais de uma divisão ou conferência. Então, há abas pra todas as conferências, nela tem os jogos e depois tem as outras conferências
-# As tabelas de classificação não são da classe home-away. Ent provavelmente não haverá problemas com elas
-
-# Nos da BFA, quando tem playoffs, aparentemente ele sempre detecta 2 tabelas, a da regular e a de playoffs, nessa ordem.
-# É só selecionar a certa
-
-#Realmente n dá pra pegar as informações dos cards com o read_html, fica bugado geralmente. Isso terá que ser feito mais na mão
-
 
 # Algumas ligas possuem tabelas que passam pra mais de uma página. Provavelmemte será necessário tratar isso. - 
 # parece que ele tá carregando dinamicamente a segunda página. Então será necessário passar pra próximo e então pegar os dados
@@ -67,7 +56,7 @@ driver = webdriver.Chrome(
 
 all_games = pd.DataFrame()
 
-url = 'http://www.salaooval.com.br/campeonatos/bfa-2024/#tabela'
+url = 'http://www.salaooval.com.br/campeonatos/bfa-2023/#tabela'
 
 driver.get(url)
 
@@ -80,7 +69,7 @@ tabs = driver.find_elements(By.CSS_SELECTOR, "ul.vc_tta-tabs-list li span.vc_tta
 print(len(tabs))
 
 for tab in tabs:
-    url = f'http://www.salaooval.com.br/campeonatos/bfa-2024/#{tab}'
+    url = f'http://www.salaooval.com.br/campeonatos/bfa-2023/#{tab}'
 
     try:
         driver.get(url)
