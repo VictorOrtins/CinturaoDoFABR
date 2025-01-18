@@ -19,9 +19,10 @@ from src.utils.utils import is_datetime
 
 
 class GamesScrapper:
-    def __init__(self, urls_to_scrape: List[str], wait_time=30):
+    def __init__(self, urls_to_scrape: List[str], save_path, wait_time=30):
         self.urls_to_scrape = urls_to_scrape
         self.wait_time = wait_time
+        self.save_path = save_path
 
         self.driver = None
         self.__init_driver()
@@ -35,13 +36,25 @@ class GamesScrapper:
 
         self.driver = driver
 
-    def scrape_tournaments(self) -> pd.DataFrame:
+    def scrape_tournaments(self, init, end, verbose=False) -> pd.DataFrame:
         all_games = pd.DataFrame()
 
-        for url in self.urls_to_scrape:
+        urls_to_scrape = self.urls_to_scrape[init:end]
+
+        for index, url in enumerate(urls_to_scrape):
+
+            tournament = url.split('/')[-2]
+
+            if verbose:
+                print(f"--- {index + init} => {tournament} está sendo vasculhado --- ")
+            
             self.driver.get(url)
 
             tournament_tabs = self.__find_tournament_tabs()
+
+            if tournament_tabs is None:
+                print("Foram encontrados 0 jogos na URL")
+                continue
 
             all_games_url = self.__scrape_tournament(tournament_tabs, url)
 
@@ -49,14 +62,25 @@ class GamesScrapper:
 
             if len(all_games) != 0:
                 all_games['Data'] = all_games['Data'].apply(self.__format_date)
+                all_games['Torneio'] = tournament
+
+            if verbose:
+                qtd_games = len(all_games_url)
+                print(f"Foram encontrados {qtd_games} jogos na URL")
+                print(f"Registros sendo salvos no path {self.save_path}")
+            
+            self.__save_to_csv(all_games)
 
         return all_games
 
 
     def __find_tournament_tabs(self) -> List[WebElement]:
-        WebDriverWait(self.driver, self.wait_time).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, "ul.vc_tta-tabs-list li"))
-        )
+        try:
+            WebDriverWait(self.driver, self.wait_time).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "ul.vc_tta-tabs-list li"))
+            )
+        except Exception:
+            return None
 
         tabs = self.driver.find_elements(By.CSS_SELECTOR, "ul.vc_tta-tabs-list li span.vc_tta-title-text")
 
@@ -160,10 +184,18 @@ class GamesScrapper:
 
         WebDriverWait(self.driver, self.wait_time).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "h5.sp-event-results span.sp-result")))
 
+        try:
+            pontos_mandante = row.find_element(By.CSS_SELECTOR, "h5.sp-event-results span.sp-result.ok").get_attribute('textContent')
+            pontos_visitante = row.find_element(By.CSS_SELECTOR, "h5.sp-event-results span.sp-result:not(.ok)").get_attribute('textContent')
+        except Exception:
+            pontos = row.find_elements(By.CSS_SELECTOR, "h5.sp-event-results span.sp-result")
+            try:
+                pontos_mandante = pontos[0].get_attribute('textContent')
+                pontos_visitante = pontos[1].get_attribute('textContent')
+            except Exception:
+                pontos_mandante = 'X'
+                pontos_visitante = 'X'
 
-        pontos_mandante = row.find_element(By.CSS_SELECTOR, "h5.sp-event-results span.sp-result.ok").get_attribute('textContent')
-        pontos_visitante = row.find_element(By.CSS_SELECTOR, "h5.sp-event-results span.sp-result:not(.ok)").get_attribute('textContent')
-        
         # Armazenar em um dicionário
         game_data = {
             "Data": date,
@@ -180,19 +212,30 @@ class GamesScrapper:
 
         return df
     
-    def __scrape_games(self, all_games_url):        
+    def __scrape_games(self, all_games_url: pd.DataFrame):        
         all_games_url = pd.concat([all_games_url, self.__scrape_homeaway_table()], ignore_index=True)
         all_games_url = pd.concat([all_games_url, self.__scrape_cards()], ignore_index=True)
 
         return all_games_url
     
     def __format_date(self, date):
+        if isinstance(date, float): ##Faço a menor ideia do que fazer aqui KKKKK
+            return date
+        
         is_date_datetime = is_datetime(date)
         if is_date_datetime:
             return date
         else:
             if isinstance(date, str):
                 return date[:19]
+    
+    def __save_to_csv(self, all_games: pd.DataFrame):
+        if self.save_path is None:
+            return
+        
+
+        all_games.to_csv(self.save_path, index=False, header=True)
+        
 
 
     
