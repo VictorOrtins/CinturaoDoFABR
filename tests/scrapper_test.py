@@ -81,8 +81,69 @@ class TestGamesScrapper:
         cuiaba_crocodiles = brasileiro_2012[(brasileiro_2012['Mandante'] == 'Cuiabá Arsenal') & (brasileiro_2012['Visitante'] == 'Coritiba Crocodiles')]
         assert len(cuiaba_crocodiles) == 1
 
-        assert cuiaba_crocodiles['Hor/Res'].iloc[0] == '31- 23'
+        assert cuiaba_crocodiles['Hor/Res'].iloc[0] == '31 - 23'
         assert cuiaba_crocodiles['Data'].iloc[0] == '2012-11-24 14:00:00'
+
+    def test_spfl_2018(self):
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/sao-paulo-football-league-2018/'])
+
+        spfl_2012 = scrapper.scrape_tournaments()
+
+        assert len(spfl_2012) == 47
+        assert len(spfl_2012[~spfl_2012['Campo'].isna()]) == 42
+
+
+        piracicaba_mooca = spfl_2012[(spfl_2012['Mandante'] == 'Piracicaba Cane Cutters') & (spfl_2012['Visitante'] == 'Mooca Destroyers')]
+        assert len(piracicaba_mooca) == 1
+
+        assert piracicaba_mooca['Hor/Res'].iloc[0] == '36 - 20'
+        assert piracicaba_mooca['Data'].iloc[0] == '2018-03-18 14:00:00'
+
+
+        storm_lizards = spfl_2012[(spfl_2012['Mandante'] == 'São Paulo Storm') & (spfl_2012['Visitante'] == 'Empyreo Leme Lizards')]
+        assert len(storm_lizards) == 1
+
+        assert storm_lizards['Hor/Res'].iloc[0] == '37 - 00'
+        assert storm_lizards['Data'].iloc[0] == '2018-06-10 14:00:00'
+
+
+        rhynos_storm = spfl_2012[(spfl_2012['Mandante'] == 'Guarulhos Rhynos') & (spfl_2012['Visitante'] == 'São Paulo Storm')]
+        assert len(rhynos_storm) == 2
+
+        assert rhynos_storm['Hor/Res'].iloc[0] == '48 - 20'
+        assert rhynos_storm['Data'].iloc[0] == '2018-03-10 10:00:00'
+
+        assert rhynos_storm['Hor/Res'].iloc[1] == '21 - 18'
+        assert rhynos_storm['Data'].iloc[1] == '2018-07-08 10:00:09'
+
+    def test_nordeste_2019(self):
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/copa-nordeste-2019/'])
+
+        nordeste_2019 = scrapper.scrape_tournaments()
+
+        assert len(nordeste_2019) == 5
+
+        bulls_patos = nordeste_2019[(nordeste_2019['Mandante'] == 'Bulls Potiguares 2') & (nordeste_2019['Visitante'] == 'Patos FA')]
+        assert len(bulls_patos) == 1
+
+        assert bulls_patos['Hor/Res'].iloc[0] == '31 - 23'
+        assert bulls_patos['Data'].iloc[0] == '2019-04-28 15:00:00'
+
+
+        redbulls_bulls = nordeste_2019[(nordeste_2019['Mandante'] == 'Santana Red Bulls') & (nordeste_2019['Visitante'] == 'Bulls Potiguares 2')]
+        assert len(redbulls_bulls) == 1
+
+        assert redbulls_bulls['Hor/Res'].iloc[0] == '25 - 14'
+        assert redbulls_bulls['Data'].iloc[0] == '2019-08-10 18:00:00'
+
+    def test_two_leagues(self):
+        urls_list = ['http://www.salaooval.com.br/campeonatos/bfa-2024/', 'http://www.salaooval.com.br/campeonatos/campeonato-brasileiro-2012/']
+
+        scrapper = GamesScrapper(urls_list)
+
+        all_games = scrapper.scrape_tournaments()
+
+        assert len(all_games) == 160
 
 
 
