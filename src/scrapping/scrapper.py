@@ -92,13 +92,12 @@ class GamesScrapper:
 
     def __scrape_tournament(self, tournament_tabs: List[WebElement], url: str) -> pd.DataFrame:
         all_games_url = pd.DataFrame()
-        for tab in tournament_tabs:
-            try:
-                scrape_url = f'{url}#{tab.text.lower()}'
-                print(scrape_url)
-            except Exception:
-                continue
 
+        tournament_tabs_text = [tab.get_attribute('textContent') for tab in tournament_tabs]
+        
+        for tab_text in tournament_tabs_text:
+            scrape_url = f'{url}#{tab_text.lower()}'
+        
             if not self.__get_tab_url(scrape_url):
                 continue
 
@@ -115,12 +114,16 @@ class GamesScrapper:
                 all_games_url = self.__scrape_games(all_games_url)
 
             all_games_url = all_games_url.drop_duplicates(subset=["Data", "Mandante", "Hor/Res", "Visitante"])
-        
+            
         return all_games_url
 
     def __scrape_homeaway_table(self) -> pd.DataFrame:
         all_games_homeaway = pd.DataFrame()
         tables = self.__find_elements(By.CLASS_NAME, "sp-event-list-format-homeaway")
+
+        if tables is None:
+            return all_games_homeaway
+        
         for table in tables:
             df = self.__get_table_df(table)
             all_games_homeaway = pd.concat([all_games_homeaway, df], ignore_index=True)
@@ -133,6 +136,10 @@ class GamesScrapper:
         WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
 
         rows = self.__find_elements(By.CSS_SELECTOR, "table.sp-event-blocks.sp-data-table.sp-paginated-table tbody tr")
+
+        if rows is None:
+            return all_games_cards
+
 
         df_cards = pd.DataFrame()
         for row in rows:
