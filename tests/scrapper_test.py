@@ -8,7 +8,7 @@ from src.scrapping.scrapper import GamesScrapper
 class TestGamesScrapper:
     #Nacional 1
     def test_bfa_2024(self):
-        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/bfa-2024/'])
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/bfa-2024/'], save_path=None)
 
         bfa_2024_df = scrapper.scrape_tournaments(init=0, end=1)
 
@@ -38,7 +38,7 @@ class TestGamesScrapper:
     
     # Nacional 2 - Com jogos páginados
     def test_campeonato_brasileiro_2012(self):
-        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/campeonato-brasileiro-2012/'])
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/campeonato-brasileiro-2012/'], save_path=None)
 
         brasileiro_2012 = scrapper.scrape_tournaments(init=0, end=1)
 
@@ -86,7 +86,7 @@ class TestGamesScrapper:
     
     # Estadual
     def test_spfl_2018(self):
-        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/sao-paulo-football-league-2018/'])
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/sao-paulo-football-league-2018/'], save_path=None)
 
         spfl_2012 = scrapper.scrape_tournaments(init=0, end=1)
 
@@ -119,7 +119,7 @@ class TestGamesScrapper:
 
     # Regional
     def test_nordeste_2019(self):
-        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/copa-nordeste-2019/'])
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/copa-nordeste-2019/'], save_path=None)
 
         nordeste_2019 = scrapper.scrape_tournaments(init=0, end=1)
 
@@ -199,16 +199,104 @@ class TestGamesScrapper:
         matogrossense_2015 = scrapper.scrape_tournaments(init=0, end=1)
 
         assert len(matogrossense_2015) == 0
+
+    # Esse aqui só tem tabela, n tem aqueles cards
+    def test_mineiro_2012(self):
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/campeonato-mineiro-2012/'], save_path=None)
+
+        mineiro_2012 = scrapper.scrape_tournaments(init=0, end=1)
+
+        assert len(mineiro_2012) == 12
+
+        locomotiva_gladiadores = mineiro_2012[(mineiro_2012['Mandante'] == 'América Locomotiva') & (mineiro_2012['Visitante'] == 'Pouso Alegre Gladiadores')]
+        assert len(locomotiva_gladiadores) == 1
+
+        assert locomotiva_gladiadores['Hor/Res'].iloc[0] == '54 - 00'
+        assert locomotiva_gladiadores['Data'].iloc[0] == '2012-05-26 14:00:00'
+
+    def test_copa_pr_2022(self):
+        scrapper = GamesScrapper(['https://www.salaooval.com.br/campeonatos/copa-pr-2022/'], save_path=None)
+
+        mineiro_2012 = scrapper.scrape_tournaments(init=0, end=1)
+
+        assert len(mineiro_2012) == 6
+
+        locomotiva_gladiadores = mineiro_2012[(mineiro_2012['Mandante'] == 'São Miguel Indians') & (mineiro_2012['Visitante'] == 'Cascavel Olympians')]
+        assert len(locomotiva_gladiadores) == 1
+
+        assert locomotiva_gladiadores['Hor/Res'].iloc[0] == '19 - 00'
+        assert locomotiva_gladiadores['Data'].iloc[0] == '2022-11-20 10:00:09'
+
+    def test_taca_nove_2014(self):
+        scrapper = GamesScrapper(['https://www.salaooval.com.br/campeonatos/taca-nove-de-julho-2014/'], save_path=None)
+
+        taca_nove_2014 = scrapper.scrape_tournaments(init=0, end=1)
+
+        assert len(taca_nove_2014) == 35
+
+        mustangs_pouso = taca_nove_2014[(taca_nove_2014['Mandante'] == 'Avaré Mustangs') & (taca_nove_2014['Visitante'] == 'Pouso Alegre Gladiadores')]
+        assert len(mustangs_pouso) == 1
+
+        assert mustangs_pouso['Hor/Res'].iloc[0] == '06 - 12'
+        assert mustangs_pouso['Data'].iloc[0] == '2014-10-25 14:00:00'
+
+        cougars_vikings = taca_nove_2014[(taca_nove_2014['Mandante'] == 'Cougars Football') & (taca_nove_2014['Visitante'] == 'Vikings FA')]
+        assert len(cougars_vikings) == 1
+
+        assert cougars_vikings['Hor/Res'].iloc[0] == '18 - 19'
+        assert cougars_vikings['Data'].iloc[0] == '2014-09-28 14:00:00'
+
+        lizards_ocelots = taca_nove_2014[(taca_nove_2014['Mandante'] == 'Empyreo Leme Lizards') & (taca_nove_2014['Visitante'] == 'Ocelots FA')]
+        assert len(lizards_ocelots) == 1
+
+        assert lizards_ocelots['Hor/Res'].iloc[0] == '03 - 06'
+        assert lizards_ocelots['Data'].iloc[0] == '2014-12-21 14:00:00'
+
+    # Um dos 45 campeonatos que o script de scraping ignorou, por algum motivo que n sei dizer
+    def test_bfa_2017(self):
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/bfa-2017/'], save_path=None)
+
+        bfa_2017_df = scrapper.scrape_tournaments(init=0, end=1)
+
+        assert len(bfa_2017_df) == 95
+
+        cavalaria_mariners = bfa_2017_df[(bfa_2017_df['Mandante'] == 'Cavalaria 2 de Julho') & (bfa_2017_df['Visitante'] == 'Recife Mariners')]
+        assert len(cavalaria_mariners) == 1
+
+        assert cavalaria_mariners['Hor/Res'].iloc[0] == '00 - 34'
+        assert cavalaria_mariners['Data'].iloc[0] == '2017-08-06 14:00:00'
+
+
+        rex_mariners = bfa_2017_df[(bfa_2017_df['Mandante'] == 'Sada Cruzeiro') & (bfa_2017_df['Visitante'] == 'Flamengo Imperadores')]
+        assert len(rex_mariners) == 1
+
+        assert rex_mariners['Hor/Res'].iloc[0] == '26 - 07'
+        assert rex_mariners['Data'].iloc[0] == '2017-08-05 18:00:00'
+
+
+        rex_galo = bfa_2017_df[(bfa_2017_df['Mandante'] == 'Sada Cruzeiro') & (bfa_2017_df['Visitante'] == 'João Pessoa Espectros')]
+        assert len(rex_galo) == 1
+
+        assert rex_galo['Hor/Res'].iloc[0] == '30 - 13'
+        assert rex_galo['Data'].iloc[0] == '2017-12-10 17:00:42'
+
+        
         
 
     def test_two_leagues(self):
         urls_list = ['http://www.salaooval.com.br/campeonatos/bfa-2024/', 'http://www.salaooval.com.br/campeonatos/campeonato-brasileiro-2012/']
 
-        scrapper = GamesScrapper(urls_list)
+        scrapper = GamesScrapper(urls_list, save_path=None)
 
         all_games = scrapper.scrape_tournaments(init=0, end=2)
 
         assert len(all_games) == 160
+
+        bfa_2024 = all_games[all_games['Torneio'] == 'bfa-2024']
+        brasileiro_2012 = all_games[all_games['Torneio'] == 'campeonato-brasileiro-2012']
+
+        assert len(bfa_2024) == 52
+        assert len(brasileiro_2012) == 108
 
 
 
