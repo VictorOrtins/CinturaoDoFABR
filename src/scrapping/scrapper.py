@@ -48,7 +48,10 @@ class GamesScrapper:
             if verbose:
                 print(f"--- {index + init} => {tournament} está sendo vasculhado --- ")
             
-            self.driver.get(url)
+            try:
+                self.driver.get(url)
+            except Exception:
+                continue
 
             tournament_tabs = self.__find_tournament_tabs()
 
@@ -58,11 +61,13 @@ class GamesScrapper:
 
             all_games_url = self.__scrape_tournament(tournament_tabs, url)
 
+            if len(all_games_url) != 0:
+                all_games_url['Torneio'] = tournament
+
             all_games = pd.concat([all_games, all_games_url], ignore_index=True)
 
             if len(all_games) != 0:
                 all_games['Data'] = all_games['Data'].apply(self.__format_date)
-                all_games['Torneio'] = tournament
 
             if verbose:
                 qtd_games = len(all_games_url)
@@ -157,8 +162,11 @@ class GamesScrapper:
     def __scrape_cards(self) -> pd.DataFrame:
         all_games_cards = pd.DataFrame()
 
-        WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
-
+        try:
+            WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
+        except Exception:
+            return None
+        
         rows = self.__find_elements(By.CSS_SELECTOR, "table.sp-event-blocks.sp-data-table.sp-paginated-table tbody tr")
 
         if rows is None:
@@ -214,7 +222,11 @@ class GamesScrapper:
     
     def __scrape_games(self, all_games_url: pd.DataFrame):        
         all_games_url = pd.concat([all_games_url, self.__scrape_homeaway_table()], ignore_index=True)
-        all_games_url = pd.concat([all_games_url, self.__scrape_cards()], ignore_index=True)
+
+        scrape_cards_ret = self.__scrape_cards()
+        
+        if scrape_cards_ret is not None:
+            all_games_url = pd.concat([all_games_url, scrape_cards_ret], ignore_index=True)
 
         return all_games_url
     
