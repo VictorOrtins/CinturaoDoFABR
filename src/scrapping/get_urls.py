@@ -48,6 +48,10 @@ class TournamentUrlsScrapper:
 
         urls = self.__filter_urls(links)
 
+        urls = self.__fix_urls(urls)
+
+        urls = self.__append_missing_urls(urls)
+
         return urls
 
     def __init_driver(self):
@@ -89,12 +93,43 @@ class TournamentUrlsScrapper:
 
         return urls
     
+
+    def __append_missing_urls(self, urls: List[str]) -> List[str]:
+        urls.append('https://www.salaooval.com.br/campeonatos/taca-nove-de-julho-2023/')
+
+        try:
+            urls.remove('http://www.salaooval.com.br/campeonatos/campeonato-matogrossense-2015/')
+            urls.append('https://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2015/')
+        except Exception:
+            pass
+
+        try:
+            first_matogrossense_2018 = urls.index('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2018/')
+            try:
+                second_matogrossense_2018 = urls[first_matogrossense_2018 + 1:].index('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2018/') + first_matogrossense_2018 + 1                
+                del urls[second_matogrossense_2018]
+                urls.append('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2019/')
+            except ValueError:
+                pass
+        except ValueError:
+            pass
+
+        return urls
+    
+    def __fix_urls(self, urls: List[str]) -> List[str]:
+        urls = [url if url.endswith('/') else url + '/' for url in urls]
+        return urls
+    
 if __name__ == '__main__':
     url = 'https://www.salaooval.com.br/campeonatos/#nacionais'
 
     tournaments_scrapper: TournamentUrlsScrapper = TournamentUrlsScrapper(url, 'masculino')
 
     urls = tournaments_scrapper.get_urls()
+
+    print(urls)
+
+    print(len(urls))
 
     for url in urls:
         print(url)
