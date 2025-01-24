@@ -281,8 +281,6 @@ class TestGamesScrapper:
         assert rex_galo['Data'].iloc[0] == '2017-12-10 17:00:42'
 
         
-        
-
     def test_two_leagues(self):
         urls_list = ['http://www.salaooval.com.br/campeonatos/bfa-2024/', 'http://www.salaooval.com.br/campeonatos/campeonato-brasileiro-2012/']
 
@@ -298,6 +296,16 @@ class TestGamesScrapper:
         assert len(bfa_2024) == 52
         assert len(brasileiro_2012) == 108
 
+    def test_fabr_game_day(self):
+        scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/campeonato-matogrossense-2015/'], save_path=None)
+
+        all_games = scrapper.scrape_tournaments(init=0, end=1, add_fabr_game_day=True)
+
+        assert len(all_games) == 1
+
+        croco_brown_spiders = all_games[(all_games['Mandante'] == 'Brown Spiders') & (all_games['Visitante'] == 'Coritiba Crocodiles')]
+        assert croco_brown_spiders['Hor/Res'].iloc[0] == '33 - 10'
+        assert croco_brown_spiders['Torneio'].iloc[0] == 'Amistoso'
 
 
 
