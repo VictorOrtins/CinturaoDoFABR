@@ -3,8 +3,6 @@ import os
 import pandas as pd
 
 
-## Lembrar de fazer testes!!!
-
 class Preprocessor:
     def __init__(self):
         self.original_games_df: pd.DataFrame = None
@@ -27,7 +25,9 @@ class Preprocessor:
     def preprocess_games_df(self):
         original_games_df = self.original_games_df.copy()
 
-        games_df = self.__remove_zero_column(original_games_df)
+        games_df = self.__fix_teams_names(original_games_df)
+
+        games_df = self.__remove_zero_column(games_df)
 
         games_df = self.__remove_temporada_column(games_df)
 
@@ -135,6 +135,18 @@ class Preprocessor:
     def __order_by_oldest_games(self, games_df: pd.DataFrame):
         games_df = games_df.sort_values(by=['Data'], ascending=True)
         return games_df
+    
+    def __fix_teams_names(self, games_df: pd.DataFrame):
+        games_df['Mandante'] = games_df['Mandante'].apply(lambda x: self.__fix_names(x))
+        games_df['Visitante'] = games_df['Visitante'].apply(lambda x: self.__fix_names(x))
+
+        return games_df
+    
+    def __fix_names(self, team_name: str):
+        if team_name == 'Sada Cruzeiro' or team_name == 'Galo FA':
+            return 'Sada Cruzeiro/Galo FA'
+        
+        return team_name
     
 
 if __name__ == '__main__':
