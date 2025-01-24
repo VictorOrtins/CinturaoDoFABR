@@ -36,7 +36,7 @@ class GamesScrapper:
 
         self.driver = driver
 
-    def scrape_tournaments(self, init, end, verbose=False) -> pd.DataFrame:
+    def scrape_tournaments(self, init, end, add_fabr_game_day=False, verbose=False) -> pd.DataFrame:
         all_games = pd.DataFrame()
 
         urls_to_scrape = self.urls_to_scrape[init:end]
@@ -75,6 +75,9 @@ class GamesScrapper:
                 print(f"Registros sendo salvos no path {self.save_path}")
             
             self.__save_to_csv(all_games)
+
+        if add_fabr_game_day:
+            all_games = self.__add_fabr_day_game(all_games)
 
         return all_games
 
@@ -247,14 +250,31 @@ class GamesScrapper:
         
 
         all_games.to_csv(self.save_path, index=False, header=True)
+    
+    def __add_fabr_day_game(self, all_games: pd.DataFrame):
+        fabr_game_data = {
+            "Data": "2008-10-25 14:00:00",
+            "Mandante": "Brown Spiders",
+            "Hor/Res": "33 - 10",
+            "Visitante": "Coritiba Crocodiles",
+            "Campo": None,
+            "Fase": None,
+            "Torneio": "Amistoso"
+        }
+
+        all_games = pd.concat([all_games, pd.DataFrame([fabr_game_data])], ignore_index=True)
+
+        return all_games
         
 
 
     
 if __name__ == '__main__':
-    scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/bfa-2024/'])
+    scrapper = GamesScrapper(['http://www.salaooval.com.br/campeonatos/campeonato-matogrossense-2015/'], save_path='data/raw/games4.csv')
 
-    all_games = scrapper.scrape_tournaments()
+    all_games = scrapper.scrape_tournaments(init=0, end=1, add_fabr_game_day=True)
+
+    all_games.to_csv('games4.csv')
 
     print(len(all_games))
 
