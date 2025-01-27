@@ -15,7 +15,9 @@ class Cinturao:
         current_game = self.games_df.iloc[0]
         current_champion = current_game['Vencedor']
         current_game_date = current_game['Data']
+
         cinturao_games = pd.DataFrame([current_game], index=None)
+        cinturao_games['Defensor do Título'] = ' - '
 
         while True:
             try:
@@ -23,10 +25,14 @@ class Cinturao:
             except IndexError:
                 break
             
+            defending_champion = current_champion
             current_champion = current_game['Vencedor']
             current_game_date = current_game['Data']
 
-            cinturao_games = pd.concat([cinturao_games, current_game.to_frame().T], ignore_index=True)
+            current_game_with_champion = current_game.to_frame().T
+            current_game_with_champion['Defensor do Título'] = [defending_champion]
+
+            cinturao_games = pd.concat([cinturao_games, current_game_with_champion], ignore_index=True)
 
         return cinturao_games
     
