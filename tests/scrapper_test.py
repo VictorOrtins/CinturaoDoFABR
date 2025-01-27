@@ -3,7 +3,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.scrapping.scrapper import GamesScrapper
+from src.scrapping.scrape_games.scrapper import GamesScrapper
 
 class TestGamesScrapper:
     #Nacional 1
