@@ -38,10 +38,10 @@ class Cinturao:
     
 
 if __name__ == '__main__':
-    cinturao = Cinturao(preprocessed_games_path='data/preprocessed/games.csv')
+    cinturao = Cinturao(preprocessed_games_path='data/games/preprocessed/games.csv')
 
     cinturao.read_games_data()
 
     cinturao_games = cinturao.run_cinturao_algorithm()
 
-    cinturao_games.to_csv('data/cinturao/games.csv', index=False)
+    cinturao_games.to_csv('data/games/cinturao/games.csv', index=False)

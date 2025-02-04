@@ -26,6 +26,8 @@ class TeamUrlsScrapper:
 
         urls = self.__fix_urls(urls)
 
+        urls = self.__add_missing_urls(urls)
+
         return urls
 
     def __init_driver(self):
@@ -55,6 +57,11 @@ class TeamUrlsScrapper:
     
     def __fix_urls(self, urls: List[str]) -> List[str]:
         urls = [url if url.endswith('/') else url + '/' for url in urls]
+        return urls
+    
+    def __add_missing_urls(self, urls: List[str]) -> List[str]:
+        urls.append() #Adicionar url do Almirantes FA e do Istepôs FA
+
         return urls
     
 if __name__ == '__main__':

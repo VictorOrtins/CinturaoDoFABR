@@ -146,6 +146,12 @@ class Preprocessor:
         if team_name == 'Sada Cruzeiro' or team_name == 'Galo FA':
             return 'Sada Cruzeiro/Galo FA'
         
+        if team_name == 'Fluminense Imperadores':
+            return 'Fluminense FA'
+        
+        if team_name == 'Foz Black Sharks':
+            return 'Foz do Iguaçu Black Sharks'
+        
         return team_name
     
 

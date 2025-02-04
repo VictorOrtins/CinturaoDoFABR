@@ -4,7 +4,7 @@ import os
 import pandas as pd
 pd.options.mode.chained_assignment = None
 
-
+# Trocar Joinville Gladiators por JEC Gladiators
 class Preprocessor:
     class Regiao(Enum):
         SUDESTE = 'sudeste'
@@ -34,7 +34,11 @@ class Preprocessor:
     def preprocess_teams_df(self):
         original_teams_df = self.original_teams_df.copy()
 
+        teams_df = self.__remove_special_characters(original_teams_df)
+
         teams_df = original_teams_df.drop_duplicates(subset=['Nome'])
+
+        teams_df = self.__fix_teams_names(teams_df)
 
         teams_df = self.__fix_sede(teams_df)
 
@@ -46,6 +50,17 @@ class Preprocessor:
 
         return self.final_teams_df
     
+    def __remove_special_characters(self, teams_df: pd.DataFrame) -> pd.DataFrame:
+        teams_df['Nome'] = teams_df['Nome'].str.replace(r'\s+', ' ', regex=True).str.strip()
+
+        return teams_df
+    
+    def __fix_teams_names(self, teams_df: pd.DataFrame) -> pd.DataFrame:
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Joinville Gladiators', 'JEC Gladiators').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Galo Futebol Americano', 'Sada Cruzeiro/Galo FA').str.strip()
+
+        return teams_df
+    
     def __fix_sede(self, original_teams_df: pd.DataFrame) -> pd.DataFrame:
         original_teams_df['Sede'] = original_teams_df['Sede'].apply(lambda x: None if x == 's' else x)
 
@@ -55,6 +70,7 @@ class Preprocessor:
         teams_df['Estado'] = teams_df['Sede'].apply(lambda x: x.split('/')[-1] if isinstance(x, str) else x)
 
         return teams_df
+
     
     def __add_regiao_column(self, teams_df: pd.DataFrame) -> pd.DataFrame:
         teams_df = teams_df.apply(lambda x: self.__insert_regiao(x), axis=1)
