@@ -1,5 +1,9 @@
 .vscode/*
 *.pyc
 __pycache__/*
+
 *.csv
-!app/data/*.csv
+!app/data/cinturao/*.csv
+!app/data/teams/*.csv
+
+
