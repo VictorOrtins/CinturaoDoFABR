@@ -1,8 +1,13 @@
 import os
+import sys
 
 import streamlit as st
 
-from utils.data_utils import read_csv_data, get_img_url
+base_dir = os.path.dirname(os.path.abspath(__file__))
+project_path = os.path.abspath(os.path.join(base_dir, '..'))
+sys.path.append(project_path)
+
+from utils.data_utils import read_csv_data, get_img_url  # noqa: E402
 
 st.set_page_config(layout="wide")
 
@@ -12,11 +17,13 @@ st.text("Aqui estão listados todos os jogos valendo o cinturão do FABR, do seu
 
 st.text("A tabela é interativa, então ordene-a como desejar. Há também uma ferramenta de busca, caso queira.")
 
-games_df = read_csv_data(os.path.join('data', 'cinturao', 'games.csv'))
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+games_df = read_csv_data(os.path.join(base_dir, "..", 'data', 'cinturao', 'games.csv'))
 games_df = games_df.drop(columns=['Campo', 'Fase', 'Pontos Mandante', 'Pontos Visitante'])
 games_df.columns = ['Data', 'Mandante', 'Resultado', 'Visitante', 'Torneio', 'Vencedor', 'Defensor do Cinturão']
 
-teams_df = read_csv_data(os.path.join('data', 'teams', 'teams.csv'))
+teams_df = read_csv_data(os.path.join(base_dir, "..", 'data', 'teams', 'teams.csv'))
 games_df['URL Mandante'] = games_df['Mandante'].apply(lambda x: get_img_url(x, teams_df))
 games_df['URL Visitante'] = games_df['Visitante'].apply(lambda x: get_img_url(x, teams_df))
 

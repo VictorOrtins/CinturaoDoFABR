@@ -1,9 +1,14 @@
 import os
+import sys
 
 import streamlit as st
 
-from utils.data_utils import read_csv_data
-from utils.visualization_utils import (
+base_dir = os.path.dirname(os.path.abspath(__file__))
+project_path = os.path.abspath(os.path.join(base_dir, '..'))
+sys.path.append(project_path)
+
+from utils.data_utils import read_csv_data  # noqa: E402
+from utils.visualization_utils import (  # noqa: E402
     get_most_cinturao_defenses,
     get_most_cinturao_wins,
     get_teams_with_most_games,
@@ -12,6 +17,8 @@ from utils.visualization_utils import (
     get_teams_with_most_days_with_cinturao,
     get_teams_with_most_consecutive_days_with_cinturao
 )
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
 
 stats = {
     "Times com mais Defesas de Títulos": get_most_cinturao_defenses,
@@ -27,8 +34,8 @@ stats = {
 
 st.title("Estatísticas Relevantes")
 
-games_df = read_csv_data(os.path.join("data", "cinturao", "games.csv"))
-teams_df = read_csv_data(os.path.join("data", "teams", "teams.csv"))
+games_df = read_csv_data(os.path.join(base_dir, "..", "data", "cinturao", "games.csv"))
+teams_df = read_csv_data(os.path.join(base_dir, "..", "data", "teams", "teams.csv"))
 
 option = st.selectbox(
     "Qual Estatística deseja ver?",
