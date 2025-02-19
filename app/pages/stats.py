@@ -13,6 +13,8 @@ from utils.visualization_utils import (
     get_teams_with_most_consecutive_days_with_cinturao
 )
 
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
 stats = {
     "Times com mais Defesas de Títulos": get_most_cinturao_defenses,
     "Times com mais conquistas do Cinturão": get_most_cinturao_wins,
@@ -27,8 +29,8 @@ stats = {
 
 st.title("Estatísticas Relevantes")
 
-games_df = read_csv_data(os.path.join("data", "cinturao", "games.csv"))
-teams_df = read_csv_data(os.path.join("data", "teams", "teams.csv"))
+games_df = read_csv_data(os.path.join(base_dir, "data", "cinturao", "games.csv"))
+teams_df = read_csv_data(os.path.join(base_dir, "data", "teams", "teams.csv"))
 
 option = st.selectbox(
     "Qual Estatística deseja ver?",
