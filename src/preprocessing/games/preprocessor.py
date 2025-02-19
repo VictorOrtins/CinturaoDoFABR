@@ -27,6 +27,8 @@ class Preprocessor:
 
         games_df = self.__fix_teams_names(original_games_df)
 
+        games_df = self.__fix_competions_names(games_df)
+
         games_df = self.__remove_zero_column(games_df)
 
         games_df = self.__remove_temporada_column(games_df)
@@ -50,7 +52,7 @@ class Preprocessor:
     
     def __remove_temporada_column(self, games_df: pd.DataFrame):
         return self.__remove_column(games_df, 'Temporada')
-    
+        
     def __remove_column(self, games_df: pd.DataFrame, column: str):
         if column not in games_df.columns:
             return games_df
@@ -152,8 +154,28 @@ class Preprocessor:
         if team_name == 'Foz Black Sharks':
             return 'Foz do Iguaçu Black Sharks'
         
+        if team_name == 'Joinville Gladiators':
+            return 'JEC Gladiators'
+        
+        if team_name == 'Juventude FA':
+            return 'União da Serræ/Juventude FA'
+        
+        if team_name == 'Vila Velha Tritões':
+            return 'Tritões FA'
+        
         return team_name
     
+    def __fix_competions_names(self, games_df: pd.DataFrame):
+        games_df['Torneio'] = games_df['Torneio'].apply(lambda x: self.__fix_competions_names_row(x))
+        return games_df
+    
+    def __fix_competions_names_row(self, name: str):
+        try:
+            names = name.split('-')
+        except Exception:
+            return name
+        
+        return ' '.join([name.capitalize() if name != 'bfa' else 'BFA' for name in names])
 
 if __name__ == '__main__':
     preprocessor = Preprocessor()
