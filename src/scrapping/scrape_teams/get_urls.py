@@ -60,7 +60,20 @@ class TeamUrlsScrapper:
         return urls
     
     def __add_missing_urls(self, urls: List[str]) -> List[str]:
-        urls.append() #Adicionar url do Almirantes FA e do Istepôs FA
+        urls.append('http://www.salaooval.com.br/equipe/almirantes-fa/')
+        urls.append('https://www.salaooval.com.br/times/istepos-fa/')
+        urls.append('http://www.salaooval.com.br/times/manaus-fa/')
+        urls.append('http://www.salaooval.com.br/equipe/brusque-admirals/')
+        urls.append('https://www.salaooval.com.br/equipe/blumenau-riesen/')
+        urls.append('https://www.salaooval.com.br/times/spartans-football/')
+        urls.append('http://www.salaooval.com.br/equipe/cabritos-fa/')
+        urls.append('https://www.salaooval.com.br/equipe/brasil-devilz/')
+        urls.append('https://www.salaooval.com.br/times/guardian-saints/')
+        urls.append('https://www.salaooval.com.br/equipe/unicentro-knights/')
+        urls.append('https://www.salaooval.com.br/times/black-hawks/')
+        urls.append('https://www.salaooval.com.br/times/tritoes-fa/')
+        urls.append('https://www.salaooval.com.br/times/tigres-futebol-americano/')
+        urls.append('https://www.salaooval.com.br/times/blaze-fa/')
 
         return urls
     
