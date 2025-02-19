@@ -58,6 +58,11 @@ class Preprocessor:
     def __fix_teams_names(self, teams_df: pd.DataFrame) -> pd.DataFrame:
         teams_df['Nome'] = teams_df['Nome'].str.replace('Joinville Gladiators', 'JEC Gladiators').str.strip()
         teams_df['Nome'] = teams_df['Nome'].str.replace('Galo Futebol Americano', 'Sada Cruzeiro/Galo FA').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Six Spartans', 'Spartans Football').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('União da Serra', 'União da Serra/Juventude FA').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Vila Velha Tritões', 'Tritões FA').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Blaze Futebol Americano', 'Blaze FA').str.strip()
+        teams_df['Nome'] = teams_df['Nome'].str.replace('Istepôs Futebol Americano', 'Istepôs FA').str.strip()
 
         return teams_df
     
