@@ -13,4 +13,11 @@ st.text("Ex: Considere que o Recife Mariners é o atual detentor do cinturão. C
 
 st.text("3. Caso, no futuro tenhamos competições internacionais de clubes, serão considerados confrontos entre equipes brasileiras, mesmo que sediadas fora do Brasil")
 
+st.header("Troca do Cinturão")
+
+st.text("1. A troca de cinturão ocorre quando o detentor do cinturão perde uma partida. O vencedor desta partida é agora o novo detentor do Cinturão do FABR")
+
+st.text("2. Caso o detentor do cinturão fique mais de 2 anos sem disputar uma partida oficial, ele perde o cinturão, que retorna ao detentor anterior ao dententor atual")
+st.text("Ex: Considere que o Recife Mariners é o atual detentor, que ganhou o cinturão derrotando o Galo FA. Se, por acaso, o Mariners ficar mais de 2 anos sem jogar partidas oficiais, o cinturão volta para o Galo FA")
+st.text("2.1 A única exceção a essa regra são períodos em que todo o FABR fica sem jogar partidas oficiais por motivos de força maior. Por exemplo, a pandemia da COVID-19")
 
