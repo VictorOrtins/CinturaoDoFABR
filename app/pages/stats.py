@@ -29,8 +29,8 @@ stats = {
 
 st.title("Estatísticas Relevantes")
 
-games_df = read_csv_data(os.path.join(base_dir, "data", "cinturao", "games.csv"))
-teams_df = read_csv_data(os.path.join(base_dir, "data", "teams", "teams.csv"))
+games_df = read_csv_data(os.path.join(base_dir, "..", "data", "cinturao", "games.csv"))
+teams_df = read_csv_data(os.path.join(base_dir, "..", "data", "teams", "teams.csv"))
 
 option = st.selectbox(
     "Qual Estatística deseja ver?",

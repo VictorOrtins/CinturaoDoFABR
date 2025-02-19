@@ -14,11 +14,11 @@ st.text("A tabela é interativa, então ordene-a como desejar. Há também uma f
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
-games_df = read_csv_data(os.path.join(base_dir, 'data', 'cinturao', 'games.csv'))
+games_df = read_csv_data(os.path.join(base_dir, "..", 'data', 'cinturao', 'games.csv'))
 games_df = games_df.drop(columns=['Campo', 'Fase', 'Pontos Mandante', 'Pontos Visitante'])
 games_df.columns = ['Data', 'Mandante', 'Resultado', 'Visitante', 'Torneio', 'Vencedor', 'Defensor do Cinturão']
 
-teams_df = read_csv_data(os.path.join(base_dir, 'data', 'teams', 'teams.csv'))
+teams_df = read_csv_data(os.path.join(base_dir, "..", 'data', 'teams', 'teams.csv'))
 games_df['URL Mandante'] = games_df['Mandante'].apply(lambda x: get_img_url(x, teams_df))
 games_df['URL Visitante'] = games_df['Visitante'].apply(lambda x: get_img_url(x, teams_df))
 
