@@ -1,8 +1,13 @@
 import os
+import sys
 
 import streamlit as st
 
-from utils.data_utils import read_csv_data, get_img_url
+base_dir = os.path.dirname(os.path.abspath(__file__))
+project_path = os.path.abspath(os.path.join(base_dir, '..'))
+sys.path.append(project_path)
+
+from utils.data_utils import read_csv_data, get_img_url  # noqa: E402
 
 st.set_page_config(layout="wide")
 

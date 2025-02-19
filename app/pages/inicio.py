@@ -1,12 +1,14 @@
 import os
+import sys
 
 import streamlit as st
 
-from utils.page_utils import set_background_color, get_image_from_url, display_video
-from utils.data_utils import read_csv_data
-
-
 base_dir = os.path.dirname(os.path.abspath(__file__))
+project_path = os.path.abspath(os.path.join(base_dir, '..'))
+sys.path.append(project_path)
+
+from utils.page_utils import get_image_from_url, display_video  # noqa: E402, F401
+from utils.data_utils import read_csv_data  # noqa: E402
 
 games_df = read_csv_data(os.path.join(base_dir, "..", 'data', 'cinturao', 'games.csv'))
 teams_df = read_csv_data(os.path.join(base_dir, "..", 'data','teams', 'teams.csv'))
