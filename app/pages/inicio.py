@@ -10,10 +10,7 @@ teams_df = read_csv_data(os.path.join('data','teams', 'teams.csv'))
 
 atual_detentor = games_df.iloc[-1]['Vencedor']
 atual_detentor_df = teams_df[teams_df['Nome'] == atual_detentor]
-page_color = atual_detentor_df['Cor Primária'].iloc[0]
 atual_detentor_url = atual_detentor_df['URL da Imagem'].iloc[0]
-
-# set_background_color(page_color)
 
 st.markdown(
     "<h1 style='text-align: center; white-space: nowrap;'>Cinturão do Futebol Americano Brasileiro</h1>",
