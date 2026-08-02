@@ -19,7 +19,8 @@
 }
 
 .stats-page__mock {
-  border: 2px dashed #ccc;
+  background-color: var(--surface);
+  border: 2px dashed var(--border);
   border-radius: 0.75rem;
   padding: 1.5rem;
   opacity: 0.85;

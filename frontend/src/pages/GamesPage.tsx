@@ -36,7 +36,9 @@ export function GamesPage() {
         onChange={(event) => setSearch(event.target.value)}
       />
       {error && <p>{error}</p>}
-      <GamesTable games={filteredGames} />
+      <div className="games-page__table-card">
+        <GamesTable games={filteredGames} />
+      </div>
     </div>
   );
 }

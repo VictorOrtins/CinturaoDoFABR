@@ -5,14 +5,22 @@
 
 .games-table th {
   text-align: left;
+  font-family: "Anton", sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
   color: var(--color-dark-navy);
-  border-bottom: 2px solid var(--color-blue-primary);
+  border-bottom: 2px solid var(--color-accent-yellow);
   padding: 0.5rem;
+  white-space: nowrap;
 }
 
 .games-table td {
   padding: 0.5rem;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .games-table__team {

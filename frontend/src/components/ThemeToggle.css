@@ -1,0 +1,19 @@
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background-color: transparent;
+  color: var(--sidebar-text);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--color-accent-yellow);
+  border-color: var(--color-accent-yellow);
+}
