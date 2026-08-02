@@ -22,16 +22,51 @@ There is an OPENROUTER_API_KEY in the .env file in the project root
 
 ## Technical design
 
-The entire project should be package into a Docker container  
-The backend should be in backed/ and be a uv project, using FastAPI  
-The frontend should be in frontend/  
+The entire project is packaged with Docker Compose (2 services: `backend`, `frontend`)  
+The backend is in `backend/` and is a uv project, using FastAPI  
+The frontend is in `frontend/`, built with React + Vite + TypeScript  
 Document every step needed to run and stop the project locally
-There should be scripts in scripts/ for:
+There are scripts in scripts/ for:
 
 ```
-scripts/start-linux.sh
-scripts/stop-linux.sh
+scripts/start-linux.sh   # docker compose up --build -d
+scripts/stop-linux.sh    # docker compose down
 ```
+
+### Database
+
+Backend uses SQLite as a "temporary database" — no separate DB container. On startup,
+if the DB is empty, it's seeded from CSVs committed at `backend/seed_data/` (copied from
+the prototype's `app/data/cinturao/games.csv` and `app/data/teams/teams.csv`). Seeding is
+idempotent. Tables use proper `id` primary keys / foreign keys (the prototype joined
+`teams`/`games` by exact name string match, which is fragile — don't repeat that).
+
+Data is **not** re-scraped live for this foundation work — `src/scrapping/*` hits a live
+third-party site (salaooval.com.br) via Selenium and is slow/fragile; re-running it is
+out of scope unless a future ticket specifically asks for it.
+
+### Old prototype (`app/`)
+
+The Streamlit prototype in `app/` stays in place as a working reference — it is not
+deleted when `backend/`/`frontend/` are added. Its view/UX is a guide, not a spec to
+match exactly (see Overview above). It can be removed in a future ticket once the new
+app reaches parity.
+
+### Pages / scope
+
+Foundation pages (ported from the prototype, not copied 1:1): Home (current champion),
+Rules (static content, no backend round-trip needed), Games (sortable table with team
+logos). The Stats/visualizations page is intentionally **mocked only** for this ticket —
+static layout + one hardcoded example chart, not wired to real backend data or endpoints.
+Do not build real stats/visualization endpoints until a ticket explicitly asks for them.
+
+### Testing
+
+Backend: pytest, with real unit/integration tests (seeding logic, routers via
+`TestClient`, derived-stat logic like "current champion"), per the global "run tests
+after making changes" preference.  
+Frontend: minimal Vitest + React Testing Library smoke tests — not full coverage, just
+enough to catch obvious breakage in a foundation-stage app.
 
 ## Color Scheme
 - Accent Yellow: #ecad0a

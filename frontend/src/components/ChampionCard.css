@@ -1,0 +1,19 @@
+.champion-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid #e0e0e0;
+}
+
+.champion-card__name {
+  color: var(--color-dark-navy);
+  margin: 0;
+}
+
+.champion-card__since {
+  color: var(--color-gray-text);
+  margin: 0;
+}

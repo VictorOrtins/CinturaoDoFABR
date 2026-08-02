@@ -1,0 +1,22 @@
+.rules-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem 2rem 3rem;
+}
+
+.rules-page h1,
+.rules-page h2 {
+  color: var(--color-dark-navy);
+}
+
+.rules-page ol {
+  padding-left: 1.25rem;
+}
+
+.rules-page li {
+  margin-bottom: 0.75rem;
+}
+
+.rules-page li ol {
+  margin-top: 0.5rem;
+}

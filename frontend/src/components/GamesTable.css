@@ -1,0 +1,22 @@
+.games-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.games-table th {
+  text-align: left;
+  color: var(--color-dark-navy);
+  border-bottom: 2px solid var(--color-blue-primary);
+  padding: 0.5rem;
+}
+
+.games-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.games-table__team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
