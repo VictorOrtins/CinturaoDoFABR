@@ -6,4 +6,6 @@ __pycache__/*
 !app/data/cinturao/*.csv
 !app/data/teams/*.csv
 
+*.env
+
 
