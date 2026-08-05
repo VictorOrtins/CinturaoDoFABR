@@ -5,5 +5,12 @@ __pycache__/*
 *.csv
 !app/data/cinturao/*.csv
 !app/data/teams/*.csv
+!backend/seed_data/*.csv
 
+*.env
 
+backend/.venv/
+backend/data/
+
+frontend/node_modules/
+frontend/dist/

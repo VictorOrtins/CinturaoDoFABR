@@ -1,0 +1,27 @@
+.stats-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem 2rem 3rem;
+}
+
+.stats-page h1 {
+  color: var(--color-dark-navy);
+}
+
+.stats-page__badge {
+  display: inline-block;
+  background-color: var(--color-accent-yellow);
+  color: var(--color-dark-navy);
+  font-weight: 600;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 1rem;
+}
+
+.stats-page__mock {
+  background-color: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  opacity: 0.85;
+}

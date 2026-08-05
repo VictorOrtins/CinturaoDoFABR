@@ -1,0 +1,30 @@
+.games-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.games-table th {
+  text-align: left;
+  font-family: "Anton", sans-serif;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-dark-navy);
+  border-bottom: 2px solid var(--color-accent-yellow);
+  padding: 0.5rem;
+  white-space: nowrap;
+}
+
+.games-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.games-table__team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
