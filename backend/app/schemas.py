@@ -35,3 +35,40 @@ class GameOut(BaseModel):
 class CurrentChampionOut(BaseModel):
     team: TeamOut
     champion_since: datetime.datetime
+
+
+class LeaderboardEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    team: TeamOut
+    value: int
+
+
+class ReignTimelineEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    team: TeamOut
+    start: datetime.datetime
+    end: datetime.datetime
+    ongoing: bool
+
+
+class RegionCountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    region: str
+    value: int
+
+
+class YearCountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    year: int
+    value: int
+
+
+class MarginBucketCountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    bucket: str
+    value: int

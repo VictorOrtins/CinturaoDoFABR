@@ -27,3 +27,30 @@ export interface CurrentChampion {
   team: Team;
   champion_since: string;
 }
+
+export interface LeaderboardEntry {
+  team: Team;
+  value: number;
+}
+
+export interface ReignTimelineEntry {
+  team: Team;
+  start: string;
+  end: string;
+  ongoing: boolean;
+}
+
+export interface RegionCount {
+  region: string;
+  value: number;
+}
+
+export interface YearCount {
+  year: number;
+  value: number;
+}
+
+export interface MarginBucketCount {
+  bucket: string;
+  value: number;
+}
