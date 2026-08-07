@@ -10,9 +10,9 @@ interface ScoreMarginHistogramProps {
 
 export function ScoreMarginHistogram({ entries, valueLabel }: ScoreMarginHistogramProps) {
   const { theme } = useTheme();
-  const axisColor = theme === "dark" ? "#97a3b8" : "#6b7280";
-  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(13, 27, 47, 0.12)";
-  const barColor = theme === "dark" ? "#a566c2" : "#753991";
+  const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
+  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
+  const barColor = theme === "dark" ? "#e0574c" : "#b3261e";
 
   const data = entries.map((entry) => ({ bucket: entry.bucket, value: entry.value }));
 

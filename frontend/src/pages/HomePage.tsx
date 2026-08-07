@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { CurrentChampion } from "../api/types";
 import { ChampionCard } from "../components/ChampionCard";
+import { LoadingBelt } from "../components/LoadingBelt";
 import "./HomePage.css";
 
 export function HomePage() {
@@ -55,7 +56,7 @@ export function HomePage() {
       <div className="home-page__champion">
         {champion && <ChampionCard champion={champion} />}
         {error && <p className="home-page__status">{error}</p>}
-        {!champion && !error && <p className="home-page__status">Carregando...</p>}
+        {!champion && !error && <LoadingBelt />}
       </div>
     </div>
   );

@@ -19,8 +19,8 @@ interface LeaderboardChartProps {
 
 export function LeaderboardChart({ entries, valueLabel }: LeaderboardChartProps) {
   const { theme } = useTheme();
-  const axisColor = theme === "dark" ? "#97a3b8" : "#6b7280";
-  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(13, 27, 47, 0.12)";
+  const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
+  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
 
   const data = entries.map((entry) => ({
     team: entry.team.name,

@@ -10,9 +10,9 @@ interface GamesPerYearChartProps {
 
 export function GamesPerYearChart({ entries, valueLabel }: GamesPerYearChartProps) {
   const { theme } = useTheme();
-  const axisColor = theme === "dark" ? "#97a3b8" : "#6b7280";
-  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(13, 27, 47, 0.12)";
-  const lineColor = theme === "dark" ? "#4db8ea" : "#209dd7";
+  const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
+  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
+  const lineColor = theme === "dark" ? "#7fa0c2" : "#5b7a99";
 
   const data = entries.map((entry) => ({ year: entry.year, value: entry.value }));
 

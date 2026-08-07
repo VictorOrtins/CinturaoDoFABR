@@ -1,9 +1,19 @@
-import type { Game } from "../api/types";
+import { Link } from "react-router-dom";
+import type { Game, Team } from "../api/types";
 import { TeamLogo } from "./TeamLogo";
 import "./GamesTable.css";
 
 interface GamesTableProps {
   games: Game[];
+}
+
+function TeamLink({ team }: { team: Team }) {
+  return (
+    <Link to={`/times/${team.id}`} className="games-table__team-link">
+      <TeamLogo team={team} size={24} />
+      {team.name}
+    </Link>
+  );
 }
 
 export function GamesTable({ games }: GamesTableProps) {
@@ -24,20 +34,28 @@ export function GamesTable({ games }: GamesTableProps) {
         {games.map((game) => (
           <tr key={game.id}>
             <td>{game.date.slice(0, 10)}</td>
-            <td className="games-table__team">
-              <TeamLogo team={game.home_team} size={24} />
-              {game.home_team.name}
+            <td>
+              <TeamLink team={game.home_team} />
             </td>
             <td>
               {game.home_score ?? "?"} - {game.away_score ?? "?"}
             </td>
-            <td className="games-table__team">
-              <TeamLogo team={game.away_team} size={24} />
-              {game.away_team.name}
+            <td>
+              <TeamLink team={game.away_team} />
             </td>
-            <td>{game.tournament ?? "-"}</td>
-            <td>{game.winner_team?.name ?? "-"}</td>
-            <td>{game.defender_team?.name ?? "-"}</td>
+            <td>
+              {game.tournament ? (
+                <span className="chip">{game.tournament}</span>
+              ) : (
+                "-"
+              )}
+            </td>
+            <td>
+              {game.winner_team ? <TeamLink team={game.winner_team} /> : "-"}
+            </td>
+            <td>
+              {game.defender_team ? <TeamLink team={game.defender_team} /> : "-"}
+            </td>
           </tr>
         ))}
       </tbody>

@@ -21,6 +21,31 @@ def test_get_team_not_found(client: TestClient) -> None:
     assert response.status_code == 404
 
 
+def test_list_teams_played_only_is_a_strict_subset(client: TestClient) -> None:
+    all_teams = client.get("/api/teams").json()
+    played_teams = client.get("/api/teams", params={"played": True}).json()
+
+    assert 0 < len(played_teams) < len(all_teams)
+    assert {t["id"] for t in played_teams} <= {t["id"] for t in all_teams}
+
+
+def test_list_team_games(client: TestClient) -> None:
+    team_id = client.get("/api/teams", params={"played": True}).json()[0]["id"]
+
+    response = client.get(f"/api/teams/{team_id}/games")
+
+    assert response.status_code == 200
+    games = response.json()
+    assert len(games) > 0
+    for game in games:
+        assert team_id in (game["home_team"]["id"], game["away_team"]["id"])
+
+
+def test_list_team_games_not_found(client: TestClient) -> None:
+    response = client.get("/api/teams/999999/games")
+    assert response.status_code == 404
+
+
 def test_list_games(client: TestClient) -> None:
     response = client.get("/api/games")
     assert response.status_code == 200

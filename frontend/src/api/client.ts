@@ -20,7 +20,10 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  getTeams: () => get<Team[]>("/api/teams"),
+  getTeams: (playedOnly = false) =>
+    get<Team[]>(`/api/teams${playedOnly ? "?played=true" : ""}`),
+  getTeam: (id: number) => get<Team>(`/api/teams/${id}`),
+  getTeamGames: (id: number) => get<Game[]>(`/api/teams/${id}/games`),
   getGames: () => get<Game[]>("/api/games"),
   getCurrentChampion: () => get<CurrentChampion>("/api/cinturao/current"),
   getTitleDefenses: () => get<LeaderboardEntry[]>("/api/stats/title-defenses"),
