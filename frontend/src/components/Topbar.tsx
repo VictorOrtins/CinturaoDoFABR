@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { to: "/times", label: "Times" },
   { to: "/regras", label: "Regras" },
   { to: "/estatisticas", label: "Estatísticas" },
+  { to: "/assistente", label: "Assistente" },
 ];
 
 export function Topbar() {

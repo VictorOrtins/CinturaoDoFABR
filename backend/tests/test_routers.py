@@ -1,6 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.services import llm_query, query_engine
+
 
 def test_health(client: TestClient) -> None:
     response = client.get("/health")
@@ -117,3 +119,110 @@ def test_score_margin_distribution_has_all_buckets(client: TestClient) -> None:
     assert response.status_code == 200
     buckets = [entry["bucket"] for entry in response.json()]
     assert buckets == ["1-5", "6-10", "11-15", "16-20", "21+"]
+
+
+def test_assistant_query_returns_503_when_unconfigured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openrouter_api_key", None)
+
+    response = client.post(
+        "/api/assistant/query", json={"question": "quem tem mais defesas"}
+    )
+
+    assert response.status_code == 503
+
+
+def test_assistant_query_ok_path(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
+    spec = query_engine.QuerySpec(
+        group_by=query_engine.Dimension.TEAM, team_role=query_engine.TeamRole.DEFENDER
+    )
+    monkeypatch.setattr(
+        llm_query,
+        "interpret",
+        lambda db, question: llm_query.LLMQueryResponse(status="ok", spec=spec),
+    )
+
+    response = client.post(
+        "/api/assistant/query", json={"question": "quem tem mais defesas"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["output"] == "chart"
+    assert body["chart"]["chart_type"] == "leaderboard"
+    assert "primary_color" in body["chart"]["leaderboard"][0]["team"]
+
+
+def test_assistant_query_unsupported_path(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
+    monkeypatch.setattr(
+        llm_query,
+        "interpret",
+        lambda db, question: llm_query.LLMQueryResponse(
+            status="unsupported", reason="Não temos dados de jogadores."
+        ),
+    )
+
+    response = client.post(
+        "/api/assistant/query", json={"question": "quem fez mais touchdowns"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "unsupported"
+    assert body["chart"] is None
+    assert body["table"] is None
+
+
+def test_assistant_query_rejects_empty_question(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
+
+    response = client.post("/api/assistant/query", json={"question": ""})
+
+    assert response.status_code == 422
+
+
+def test_assistant_query_table_path(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
+    table_spec = query_engine.TableSpec(entity=query_engine.TableEntity.GAMES, limit=5)
+    monkeypatch.setattr(
+        llm_query,
+        "interpret",
+        lambda db, question: llm_query.LLMQueryResponse(
+            status="ok", output="table", table=table_spec
+        ),
+    )
+
+    response = client.post(
+        "/api/assistant/query", json={"question": "quais jogos aconteceram"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["output"] == "table"
+    assert body["chart"] is None
+    expected_columns = ["Data", "Mandante", "Visitante", "Placar", "Campeão"]
+    assert body["table"]["columns"] == expected_columns
+    assert len(body["table"]["rows"]) == 5

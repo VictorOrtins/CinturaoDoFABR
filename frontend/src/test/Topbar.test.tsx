@@ -19,6 +19,7 @@ describe("Topbar", () => {
     expect(screen.getByRole("link", { name: "Times" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Regras" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Estatísticas" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Assistente" })).toBeInTheDocument();
   });
 
   it("renders a theme toggle button", () => {

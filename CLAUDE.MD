@@ -131,6 +131,9 @@ badge. **`/times` only lists teams that have actually played a title game** — 
   team + value, top 10), plus `reign-timeline`, `titles-by-region`, `games-per-year`,
   `score-margin-distribution` (each its own response shape — see service module for the
   dataclasses). Check here before adding a new stats endpoint that might already exist.
+- `POST /api/assistant/query` (CDF-3, `backend/app/routers/assistant.py`) — natural-language
+  chat that generates *new* visualizations on demand, additive to the hardcoded `/api/stats/*`
+  set above (never replaces it). See "AI assistant / natural-language queries (CDF-3)" below.
 
 ### Teams vs. games participants
 
@@ -186,6 +189,89 @@ cancellation flag set in the effect cleanup) — rapid `<select>` changes fire o
 requests, and without the guard a slower stale response can overwrite the currently
 selected stat's data. This is a real risk here (unlike `GamesPage`/`HomePage`, which
 only fetch once on mount) because switching stats re-fetches on every change.
+
+### AI assistant / natural-language queries (CDF-3)
+
+Unlike CDF-2's fixed 12-stat menu, CDF-3 lets a user ask for a visualization that
+doesn't exist as a hardcoded endpoint (e.g. "title defenses by region", "games per year
+for teams from RS") without hardcoding a new stat function per question. It's a new
+page/route (`/assistente`), strictly additive — it never touches `/api/stats/*` or
+`StatsPage.tsx`.
+
+The LLM never generates SQL or touches team IDs/colors directly — it only fills in a
+constrained, validated `QuerySpec` (`backend/app/services/query_engine.py`):
+`group_by` (team/region/year), an optional `team_role` (home/away/participant/winner/
+defender/loser — required when grouping by team or region), an optional
+`outcome_filter` (belt_changed_hands/belt_retained), a `metric_field` (games/
+score_margin/points_scored/points_allowed) + `aggregation` (count/sum/avg/max/min), and
+`filters` (team_name/region/state/date range, resolved server-side against real DB rows
+via `difflib`-based fuzzy matching — never trusted as-is). `execute()` walks
+`stats.py`'s `ordered_games()` once, resolving each game's "subject" team(s) per
+`team_role` via a small registry of resolver functions, and buckets/aggregates in
+Python — same "plain loop, no ORM aggregates" style as CDF-2. A game is deduplicated
+per `(game.id, bucket_key)` so a `PARTICIPANT`-role game whose home and away teams both
+land in the same bucket (e.g. `group_by=year`, where the bucket never depends on which
+team it was) isn't double-counted — this bug shipped in the first pass and was caught
+by live dogfooding ("games per region" summed to more than the real game count), not by
+the unit tests originally written for it; `test_participant_does_not_double_count_*`
+guards it now. `AggregationFunction.MAX`/`MIN` slotted in for free — the validator was
+already written as "count only pairs with metric_field=games, everything else needs a
+numeric field," not an enumerated allowlist, so no validator changes were needed.
+
+**`team_role="participant"` vs `"home"` for region/year grouping is a real ambiguity,
+not a bug**: a cross-region game genuinely touches two regions, so summing appearances
+across regions can legitimately exceed the total game count (standard sports-stats
+convention) — but it reads as "wrong" for a plain "how many games were played per
+region" question. The system prompt in `llm_query.py` steers the model toward
+`team_role="home"` for that phrasing (a game's host is a single, unambiguous value, so
+totals sum to the real game count) and explicitly warns about `"participant"`'s
+double-attribution risk. If this surfaces again, it's a prompt-tuning problem, not an
+engine bug — the engine's participant math was independently verified correct.
+
+`backend/app/services/llm_query.py` builds the prompt (grounded with the live list of
+team names/regions/states, so the model can't invent values that don't exist) and calls
+`litellm.completion` per the Cerebras skill (`.claude/skills/cerebras/SKILL.md`),
+requesting `response_format=LLMQueryResponse` — a `status: "ok" | "unsupported"` wrapper
+so the model can decline (e.g. "we have no player-level data") instead of hallucinating
+a chart. Beyond declining, `LLMQueryResponse` also carries an `output: "chart" | "table"`
+discriminator: `"table"` is for questions that want a literal list (e.g. "which games
+did [team] play", "which teams are from São Paulo") rather than an aggregated metric —
+`spec: QuerySpec` is used for `"chart"`, `table: TableSpec` (`entity: "games" | "teams"`
++ the same `FilterSpec`) for `"table"`. `query_engine.execute_table()` reuses
+`_resolve_filters`/`_passes_team_filters` from the chart path (same fuzzy team-name
+matching, same date-range filter) but returns plain `TableResult(columns, rows: list[
+dict[str,str]])` instead of buckets — no aggregation, no chart-type inference. There's
+no filter by team color ("times vermelhos") — the schema has no color-name vocabulary,
+and the prompt tells the model to decline that specific case with `status="unsupported"`
+rather than guess.
+
+`backend/app/services/assistant.py` orchestrates `llm_query.interpret` →
+`query_engine.execute`/`execute_table` into an `AssistantAnswer(status: "ok" |
+"unsupported" | "error", message, output: "chart" | "table", chart, table)` — three
+status funnels only, never a 500 for a "bad" question. The response is chart/table +
+deterministic server-built label only, no LLM-authored caption sentence (kept to one LLM
+call per question).
+
+`OPENROUTER_API_KEY` is read from the repo-root `.env` via `backend/app/config.py`'s
+`env_file` (added for this feature — `Settings` previously only read `BACKEND_`-prefixed
+process env vars) using a `validation_alias` that deliberately bypasses the `BACKEND_`
+prefix convention, to match the key's existing unprefixed name in `.env`.
+`docker-compose.yml`'s `backend` service needed `env_file: .env` added too, since it
+previously didn't forward the root `.env` into the container at all.
+
+Frontend: `AssistantPage.tsx` branches on `AssistantAnswer.output` first —
+`"table"` renders `AssistantTable.tsx` (a plain `<table>` over `columns`/`rows: Record<
+string,string>[]`, no chart at all); `"chart"` falls into the existing dispatch below.
+`chart_type` (`leaderboard` | `bar` | `line`) is decided server-side from
+`group_by`, never guessed client-side. `AssistantChartAnswer.tsx` dispatches on it,
+reusing the *existing* `LeaderboardChart` unmodified for `leaderboard` (real `Team`
+objects with `primary_color`, same as CDF-2). `bar`/`line` render through
+`LabeledBarChart`/`LabeledAreaChart` (`frontend/src/components/`) — generic
+presentational shells (generic on a `T`, parameterized by `xKey`) shared with
+`ScoreMarginHistogram`/`GamesPerYearChart`, which were refactored into thin wrappers
+around them rather than duplicating the recharts JSX a third/fourth time.
+`AssistantPage.tsx` is single-shot (no conversation memory/history) — each submit
+replaces the previous answer.
 
 ### Testing
 

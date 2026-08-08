@@ -54,3 +54,30 @@ export interface MarginBucketCount {
   bucket: string;
   value: number;
 }
+
+export type AssistantChartType = "leaderboard" | "bar" | "line";
+
+export interface AssistantPoint {
+  label: string;
+  value: number;
+}
+
+export interface AssistantQueryResult {
+  chart_type: AssistantChartType;
+  value_label: string;
+  leaderboard: LeaderboardEntry[] | null;
+  points: AssistantPoint[] | null;
+}
+
+export interface AssistantTable {
+  columns: string[];
+  rows: Record<string, string>[];
+}
+
+export interface AssistantAnswer {
+  status: "ok" | "unsupported" | "error";
+  message: string | null;
+  output: "chart" | "table";
+  chart: AssistantQueryResult | null;
+  table: AssistantTable | null;
+}

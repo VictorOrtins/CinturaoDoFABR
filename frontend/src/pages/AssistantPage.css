@@ -1,0 +1,59 @@
+.assistant-page {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem 2rem 3rem;
+}
+
+.assistant-page h1 {
+  color: var(--color-dark-navy);
+}
+
+.assistant-page__form {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.assistant-page__input {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  background-color: var(--surface);
+  color: var(--text);
+  font-family: "Manrope", sans-serif;
+  font-size: 0.95rem;
+  border: 2px solid var(--color-dark-navy);
+  border-radius: 999px;
+  transition: border-color 0.15s;
+}
+
+.assistant-page__input:hover,
+.assistant-page__input:focus-visible {
+  border-color: var(--color-accent-yellow);
+  outline: none;
+}
+
+.assistant-page__form button {
+  border-radius: 999px;
+  padding: 0.65rem 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.assistant-page__form button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.assistant-page__card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+.assistant-page__status {
+  color: var(--color-gray-text);
+}

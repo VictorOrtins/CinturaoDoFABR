@@ -1,4 +1,5 @@
 import type {
+  AssistantAnswer,
   CurrentChampion,
   Game,
   LeaderboardEntry,
@@ -13,6 +14,18 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000
 
 async function get<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
+  if (!response.ok) {
+    throw new Error(`Request to ${path} failed with status ${response.status}`);
+  }
+  return response.json() as Promise<T>;
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!response.ok) {
     throw new Error(`Request to ${path} failed with status ${response.status}`);
   }
@@ -39,4 +52,6 @@ export const api = {
   getGamesPerYear: () => get<YearCount[]>("/api/stats/games-per-year"),
   getScoreMarginDistribution: () =>
     get<MarginBucketCount[]>("/api/stats/score-margin-distribution"),
+  askAssistant: (question: string) =>
+    post<AssistantAnswer>("/api/assistant/query", { question }),
 };

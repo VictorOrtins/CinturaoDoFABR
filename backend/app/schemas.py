@@ -1,6 +1,7 @@
 import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TeamOut(BaseModel):
@@ -72,3 +73,39 @@ class MarginBucketCountOut(BaseModel):
 
     bucket: str
     value: int
+
+
+class AssistantQuestionIn(BaseModel):
+    question: str = Field(min_length=3, max_length=300)
+
+
+class AssistantLeaderboardEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    team: TeamOut
+    value: float
+
+
+class AssistantPointOut(BaseModel):
+    label: str
+    value: float
+
+
+class AssistantQueryResultOut(BaseModel):
+    chart_type: Literal["leaderboard", "bar", "line"]
+    value_label: str
+    leaderboard: list[AssistantLeaderboardEntryOut] | None = None
+    points: list[AssistantPointOut] | None = None
+
+
+class AssistantTableOut(BaseModel):
+    columns: list[str]
+    rows: list[dict[str, str]]
+
+
+class AssistantAnswerOut(BaseModel):
+    status: Literal["ok", "unsupported", "error"]
+    message: str | None
+    output: Literal["chart", "table"]
+    chart: AssistantQueryResultOut | None = None
+    table: AssistantTableOut | None = None

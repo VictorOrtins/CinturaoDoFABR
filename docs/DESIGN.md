@@ -143,7 +143,8 @@ rather than re-inventing.
    before they're played).
 6. ✅ **A branded loading state** — `frontend/src/components/LoadingBelt.tsx`
    (`BeltIcon` inside a rotating ring, counter-rotated so the icon itself stays upright,
-   respects `prefers-reduced-motion`). Wired into Home/Stats/Teams/TeamDetail. `GamesPage`
+   respects `prefers-reduced-motion`). Wired into Home/Stats/Teams/TeamDetail/Assistente
+   (CDF-3's "Pensando..." state while the LLM call is in flight). `GamesPage`
    still has no loading state at all (games start as `[]` and fill in silently) — worth
    fixing together if that page gets touched again.
 7. **Real photography or texture, if/when available** — still open; depends on having

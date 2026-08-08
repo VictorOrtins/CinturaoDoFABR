@@ -1,7 +1,5 @@
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { useTheme } from "../theme/theme-context";
 import type { YearCount } from "../api/types";
-import { tooltipContentStyle, tooltipLabelStyle } from "./chartTheme";
+import { LabeledAreaChart } from "./LabeledAreaChart";
 
 interface GamesPerYearChartProps {
   entries: YearCount[];
@@ -9,35 +7,5 @@ interface GamesPerYearChartProps {
 }
 
 export function GamesPerYearChart({ entries, valueLabel }: GamesPerYearChartProps) {
-  const { theme } = useTheme();
-  const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
-  const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
-  const lineColor = theme === "dark" ? "#7fa0c2" : "#5b7a99";
-
-  const data = entries.map((entry) => ({ year: entry.year, value: entry.value }));
-
-  return (
-    <ResponsiveContainer width="100%" height={320}>
-      <AreaChart data={data} margin={{ left: 8, right: 16, top: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-        <XAxis dataKey="year" tick={{ fill: axisColor }} />
-        <YAxis allowDecimals={false} tick={{ fill: axisColor }} width={32} />
-        <Tooltip
-          contentStyle={tooltipContentStyle}
-          labelStyle={tooltipLabelStyle}
-          formatter={(value) => [value, valueLabel]}
-        />
-        <Area
-          type="monotone"
-          dataKey="value"
-          name={valueLabel}
-          stroke={lineColor}
-          strokeWidth={2}
-          fill={lineColor}
-          fillOpacity={0.1}
-          dot={{ r: 4, fill: lineColor }}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
+  return <LabeledAreaChart data={entries} xKey="year" valueLabel={valueLabel} />;
 }
