@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import Base, SessionLocal, engine
-from app.routers import cinturao, games, health, teams
+from app.routers import assistant, cinturao, games, health, stats, teams
 from app.seed import seed_if_empty
 
 
@@ -33,3 +33,5 @@ app.include_router(health.router)
 app.include_router(teams.router)
 app.include_router(games.router)
 app.include_router(cinturao.router)
+app.include_router(stats.router)
+app.include_router(assistant.router)

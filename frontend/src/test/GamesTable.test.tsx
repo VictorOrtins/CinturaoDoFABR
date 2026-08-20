@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 import { GamesTable } from "../components/GamesTable";
 import type { Game, Team } from "../api/types";
 
@@ -34,7 +35,11 @@ describe("GamesTable", () => {
       defender_team: null,
     };
 
-    render(<GamesTable games={[game]} />);
+    render(
+      <MemoryRouter>
+        <GamesTable games={[game]} />
+      </MemoryRouter>,
+    );
 
     expect(screen.getAllByText("Brown Spiders")).toHaveLength(2); // home team + winner
     expect(screen.getByText("Coritiba Crocodiles")).toBeInTheDocument();

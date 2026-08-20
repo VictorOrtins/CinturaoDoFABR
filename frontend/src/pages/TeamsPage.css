@@ -1,0 +1,48 @@
+.teams-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 2rem 3rem;
+}
+
+.teams-page h1 {
+  color: var(--color-dark-navy);
+}
+
+.teams-page__status {
+  color: var(--color-gray-text);
+}
+
+.teams-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.team-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--team-color, var(--color-accent-yellow));
+  border-radius: 0.75rem;
+  text-decoration: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.team-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(13, 27, 47, 0.16);
+}
+
+.team-card__name {
+  font-family: "Anton", sans-serif;
+  text-transform: uppercase;
+  text-align: center;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}

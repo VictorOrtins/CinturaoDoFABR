@@ -23,8 +23,14 @@
   vertical-align: middle;
 }
 
-.games-table__team {
+.games-table__team-link {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.games-table__team-link:hover {
+  color: var(--color-blue-primary);
 }
