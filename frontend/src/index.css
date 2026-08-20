@@ -1,10 +1,14 @@
 :root {
   /* "Arena" palette — fight-night poster mood: near-black ink, amber
      spotlight accent, crimson secondary, warm parchment surfaces. Replaced
-     the earlier navy/blue/purple set (see CLAUDE.MD Color Scheme). */
-  --color-accent-yellow: #f0a202;
-  --color-blue-primary: #5b7a99;
-  --color-purple-secondary: #b3261e;
+     the earlier navy/blue/purple set (see CLAUDE.MD Color Scheme). Accent
+     and secondary hues saturated up for the 8-bit/arcade pass (2026-08-20)
+     — flat, cartridge-vivid colors instead of the original dusty/muted
+     tones; ink and parchment left as-is since they already read as
+     high-contrast "cabinet" black-on-cream. */
+  --color-accent-yellow: #ffb703;
+  --color-blue-primary: #1a54c4;
+  --color-purple-secondary: #e2231a;
   --color-dark-navy: #171310;
   --color-gray-text: #7a7168;
 
@@ -39,8 +43,8 @@
 [data-theme="dark"] {
   --color-dark-navy: #f3ece0;
   --color-gray-text: #a89e8f;
-  --color-blue-primary: #7fa0c2;
-  --color-purple-secondary: #e0574c;
+  --color-blue-primary: #5f95ff;
+  --color-purple-secondary: #f23c2c;
 
   --bg: #0b0908;
   --surface: #17130f;

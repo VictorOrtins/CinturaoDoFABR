@@ -394,23 +394,27 @@ Read [`docs/DESIGN.md`](docs/DESIGN.md) first for the *why*; this is just a map 
 "Arena" palette (chosen 2026-08-07 over two other explored directions — a refined
 version of the original navy/blue/purple set, and a turf-green "Campo" direction):
 fight-night-poster mood, near-black ink, amber spotlight accent, crimson secondary,
-warm parchment surfaces in light mode. Defined as CSS custom properties in
-`frontend/src/index.css` (`:root` for light, `[data-theme="dark"]` for dark) — these
-hex values are the light-mode ones; see that file for the dark-mode overrides.
-- Accent Yellow (amber spotlight): #f0a202
-- Blue Primary (steel, muted secondary/links): #5b7a99
-- Purple Secondary (crimson, CTA/secondary-button role): #b3261e
+warm parchment surfaces in light mode. Accent and secondary hues were saturated up
+2026-08-20 as part of an 8-bit/arcade pass (see docs/DESIGN.md) — flat, cartridge-vivid
+yellow/blue/red instead of the original dusty/muted tones; ink, gray, and the parchment
+surfaces were left as-is since they already read as high-contrast "cabinet" black-on-
+cream. Defined as CSS custom properties in `frontend/src/index.css` (`:root` for light,
+`[data-theme="dark"]` for dark) — these hex values are the light-mode ones; see that
+file for the dark-mode overrides.
+- Accent Yellow (amber spotlight): #ffb703
+- Blue Primary (arcade blue, secondary/links): #1a54c4
+- Purple Secondary (arcade red, CTA/secondary-button role): #e2231a
 - Dark Navy (ink, headings): #171310
 - Gray Text: #7a7168
 - Page background (parchment): #efe6d3
 - Surface (card bg): #fbf7ec
 
-Recharts chart components (`LeaderboardChart`, `ReignTimelineChart`,
-`GamesPerYearChart`, `ScoreMarginHistogram`) can't read CSS custom properties for SVG
-`fill`/`stroke` props, so their per-theme axis/grid/line/bar colors are hardcoded hex
-duplicates of these tokens rather than `var(...)` — if the palette changes again,
-grep those four files (and `chartTheme.ts`'s `FALLBACK_TEAM_COLOR`, and
-`utils/color.ts`'s `getContrastingTextColor` dark-text return) along with `index.css`.
-`TitlesByRegionChart`'s 5-slot region palette is deliberately independent of the app's
-brand tokens (regions aren't teams) and wasn't touched.
+Recharts chart components (`LabeledAreaChart`, `LabeledBarChart`) can't read CSS custom
+properties for SVG `fill`/`stroke` props, so their per-theme axis/grid/line/bar colors
+are hardcoded hex duplicates of these tokens rather than `var(...)` — if the palette
+changes again, grep those two files (and `chartTheme.ts`'s `FALLBACK_TEAM_COLOR`, and
+`utils/color.ts`'s `getContrastingTextColor` dark-text return, which is intentionally
+left as a fixed near-black/white pair independent of the brand accent hues) along with
+`index.css`. `TitlesByRegionChart`'s 5-slot region palette is deliberately independent
+of the app's brand tokens (regions aren't teams) and wasn't touched.
 

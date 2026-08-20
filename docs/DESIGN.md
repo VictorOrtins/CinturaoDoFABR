@@ -318,5 +318,20 @@ None of these require a new dependency or framework change — they're CSS, layo
 a small amount of new illustration/type, on top of the existing React + CSS-custom-
 property setup already in place. Items 10-16 are new (2026-08-19; 11-13 and the caveats
 on 14-16 added after live-browsing the reference, correcting an earlier text-only-fetch
-draft) and unimplemented — pick them up individually rather than attempted as one big
-pass, same rule the ✅ items above already followed.
+draft) — pick them up individually rather than attempted as one big pass, same rule the
+✅ items above already followed. 10-12 are now implemented (hard-edge/hard-shadow
+buttons and cards spread across essentially every card/input surface, halftone applied
+to the TeamDetailPage hero and ChampionCard, dashed callout on ChampionCard); 13-16
+remain open.
+
+17. ✅ **Saturate the Arena palette's accent/secondary hues for the 8-bit read** —
+    the original Arena palette (item 9) was a *muted* fight-poster mood (dusty steel
+    blue, brick red); real 8-bit/arcade palettes are flat and highly saturated. Bumped
+    `--color-accent-yellow` (#f0a202 → #ffb703), `--color-blue-primary`
+    (#5b7a99 → #1a54c4 light / #7fa0c2 → #5f95ff dark), and `--color-purple-secondary`
+    (#b3261e → #e2231a light / #e0574c → #f23c2c dark) toward flat, cartridge-vivid
+    hues, checked against WCAG contrast on their actual light/dark backgrounds so the
+    saturation bump didn't cost readability. Left ink, gray text, and the parchment/
+    surface tones untouched — they already read as high-contrast "cabinet" black-on-
+    cream and didn't need to move. See CLAUDE.MD's Color Scheme section for the
+    current hex values and the note on where they're duplicated for SVG chart props.

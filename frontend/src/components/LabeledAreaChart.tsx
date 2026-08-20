@@ -16,7 +16,7 @@ export function LabeledAreaChart<T extends { value: number }>({
   const { theme } = useTheme();
   const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
   const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
-  const lineColor = theme === "dark" ? "#7fa0c2" : "#5b7a99";
+  const lineColor = theme === "dark" ? "#5f95ff" : "#1a54c4";
 
   return (
     <ResponsiveContainer width="100%" height={320}>
