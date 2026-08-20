@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.models import Game, Team
 from app.services import assistant, llm_query, query_engine
 
+TEAM_NAME = query_engine.FieldRef(entity=query_engine.FieldEntity.TEAM, column="name")
+
 
 def _seed_one_game(db: Session) -> Team:
     team_a = Team(name="Team A")
@@ -27,7 +29,7 @@ def _seed_one_game(db: Session) -> Team:
 def test_answer_question_ok_path(db_session: Session, monkeypatch) -> None:
     _seed_one_game(db_session)
     spec = query_engine.QuerySpec(
-        group_by=query_engine.Dimension.TEAM, team_role=query_engine.TeamRole.WINNER
+        group_by=TEAM_NAME, team_role=query_engine.TeamRole.WINNER
     )
     monkeypatch.setattr(
         llm_query,
@@ -78,9 +80,15 @@ def test_answer_question_unresolvable_filter_path(
 ) -> None:
     _seed_one_game(db_session)
     spec = query_engine.QuerySpec(
-        group_by=query_engine.Dimension.TEAM,
+        group_by=TEAM_NAME,
         team_role=query_engine.TeamRole.WINNER,
-        filters=query_engine.FilterSpec(team_name="Does Not Exist At All"),
+        filters=[
+            query_engine.FilterClause(
+                field=TEAM_NAME,
+                op=query_engine.FilterOp.EQUALS,
+                value="Does Not Exist At All",
+            )
+        ],
     )
     monkeypatch.setattr(
         llm_query,
@@ -96,7 +104,7 @@ def test_answer_question_unresolvable_filter_path(
 
 def test_answer_question_empty_result_path(db_session: Session, monkeypatch) -> None:
     spec = query_engine.QuerySpec(
-        group_by=query_engine.Dimension.TEAM, team_role=query_engine.TeamRole.WINNER
+        group_by=TEAM_NAME, team_role=query_engine.TeamRole.WINNER
     )
     monkeypatch.setattr(
         llm_query,
@@ -136,7 +144,15 @@ def test_answer_question_table_empty_path(db_session: Session, monkeypatch) -> N
     _seed_one_game(db_session)
     table_spec = query_engine.TableSpec(
         entity=query_engine.TableEntity.GAMES,
-        filters=query_engine.FilterSpec(date_from=datetime.date(2099, 1, 1)),
+        filters=[
+            query_engine.FilterClause(
+                field=query_engine.FieldRef(
+                    entity=query_engine.FieldEntity.GAME, column="date"
+                ),
+                op=query_engine.FilterOp.GTE,
+                value="2099-01-01",
+            )
+        ],
     )
     monkeypatch.setattr(
         llm_query,
@@ -160,7 +176,11 @@ def test_answer_question_table_unresolvable_filter_path(
 ) -> None:
     table_spec = query_engine.TableSpec(
         entity=query_engine.TableEntity.GAMES,
-        filters=query_engine.FilterSpec(team_name="Nonexistent"),
+        filters=[
+            query_engine.FilterClause(
+                field=TEAM_NAME, op=query_engine.FilterOp.EQUALS, value="Nonexistent"
+            )
+        ],
     )
     monkeypatch.setattr(
         llm_query,

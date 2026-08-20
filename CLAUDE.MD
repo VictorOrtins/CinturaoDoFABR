@@ -199,24 +199,69 @@ page/route (`/assistente`), strictly additive — it never touches `/api/stats/*
 `StatsPage.tsx`.
 
 The LLM never generates SQL or touches team IDs/colors directly — it only fills in a
-constrained, validated `QuerySpec` (`backend/app/services/query_engine.py`):
-`group_by` (team/region/year), an optional `team_role` (home/away/participant/winner/
-defender/loser — required when grouping by team or region), an optional
-`outcome_filter` (belt_changed_hands/belt_retained), a `metric_field` (games/
-score_margin/points_scored/points_allowed) + `aggregation` (count/sum/avg/max/min), and
-`filters` (team_name/region/state/date range, resolved server-side against real DB rows
-via `difflib`-based fuzzy matching — never trusted as-is). `execute()` walks
-`stats.py`'s `ordered_games()` once, resolving each game's "subject" team(s) per
-`team_role` via a small registry of resolver functions, and buckets/aggregates in
-Python — same "plain loop, no ORM aggregates" style as CDF-2. A game is deduplicated
-per `(game.id, bucket_key)` so a `PARTICIPANT`-role game whose home and away teams both
-land in the same bucket (e.g. `group_by=year`, where the bucket never depends on which
-team it was) isn't double-counted — this bug shipped in the first pass and was caught
-by live dogfooding ("games per region" summed to more than the real game count), not by
-the unit tests originally written for it; `test_participant_does_not_double_count_*`
-guards it now. `AggregationFunction.MAX`/`MIN` slotted in for free — the validator was
-already written as "count only pairs with metric_field=games, everything else needs a
-numeric field," not an enumerated allowlist, so no validator changes were needed.
+constrained, validated spec (`backend/app/services/query_engine.py`) built around a
+generic **`FieldRef`** (`{entity: "team"|"game", column: str, transform: str}`) instead
+of a hand-enumerated dimension list. `column` is validated against a per-entity
+whitelist (`team`: name/region/state/home_city; `game`: date/venue/tournament/phase/
+home_score/away_score — team colors/logos are deliberately excluded, see below) and
+`transform` against what's legal for that column's kind (`identity` always; `initial`
+[first letter, uppercased] only for text columns; `year`/`decade`/`month` only for the
+date column). A `FieldRef` is reused everywhere a "which piece of data" question comes
+up: `group_by`, `sort_by`, and each filter's `field`. This is what makes "which starting
+letter had the most teams" or "games at a given venue/tournament/phase" answerable
+without a code change — see failed_tests.MD/succesfull_tests.md for the dogfooding that
+motivated this (the original CDF-3 pass used a closed `Dimension` enum of exactly
+team/region/year, which is why those questions used to get declined outright).
+
+`team_role` (home/away/participant/winner/defender/loser) is unchanged from the first
+pass and stays a closed enum on purpose — a game only has these structurally fixed
+roles, so there was nothing to widen there. It's required whenever any `FieldRef` in the
+spec is `entity="team"` (except for `metric_field="teams"`, see below). `metric_field`
+(games/teams/score_margin/points_scored/points_allowed) and `aggregation` (count/sum/
+avg/max/min) also stay a closed enum — an exhaustive list of "measurable things" in this
+schema, not the thing the restriction complaint was about.
+
+**`metric_field="teams"` counts distinct TEAMS, not games** — added specifically because
+the games-aggregation loop below inherently can't answer "which region/letter has the
+most teams": a team that played 10 title games would otherwise outweigh one that played
+once. It takes a separate code path (`_execute_team_count`), iterating
+`teams_service.list_teams(db, played_only=True)` (see "Teams vs. games participants"
+above) instead of games, grouping by a team-entity `FieldRef` and counting. It requires
+`group_by.entity == "team"`, forbids `team_role`/`outcome_filter` (there's no game to
+resolve a role against) and game-entity filters, and only supports `aggregation="count"`
+— all enforced by `QuerySpec`'s validator, not left to the LLM's judgment.
+
+For the games-aggregation path (`_execute_game_metric`, everything but
+`metric_field="teams"`), `execute()` walks `stats.py`'s `ordered_games()` once,
+resolving each game's "subject" team(s) per `team_role` via the same small registry of
+resolver functions as before, and buckets/aggregates in Python — same "plain loop, no
+ORM aggregates" style as CDF-2. A game is deduplicated per `(game.id, bucket_key)` so a
+`PARTICIPANT`-role game whose home and away teams both land in the same bucket (e.g.
+`group_by=year`, where the bucket never depends on which team it was) isn't
+double-counted — this bug shipped in the very first pass and was caught by live
+dogfooding, not the unit tests originally written for it;
+`test_participant_does_not_double_count_*` guards it now.
+
+`filters` is a `list[FilterClause]` (`field: FieldRef`, `op: "equals"|"gte"|"lte"`,
+`value: str`) instead of a flat `team_name/region/state/date_from/date_to` object —
+`equals` on an untransformed text field still gets `difflib`-based fuzzy matching
+against real DB values (generalized from "region/state/team_name only" to any
+whitelisted text column, via `known_field_values()`); `gte`/`lte` only apply to
+date/numeric columns (validated on `FilterClause` itself). A `FieldRef`-typed filter
+on `entity="team"` without `team_role` set falls back to matching either the home or
+away team (unchanged behavior from the original `team_name`/`region`/`state` filters).
+
+`chart_type` inference generalized from a per-enum-value lookup to a function of the
+`group_by` field's shape: `team.name` untransformed → `"leaderboard"` (keeps the real
+`Team` object for colors/logos); the date column transformed to `year`/`decade` →
+`"line"`; everything else → `"bar"`. Sorting/limiting also generalized: `QuerySpec` gets
+`sort_by: "value"|"key"` + `direction: "asc"|"desc"` (default preserves the original
+behavior — value-desc for team/region leaderboards, key-asc with no limit for
+year/decade timelines — so it only changes behavior when the LLM sets it explicitly,
+e.g. "the 5 teams with the *fewest* defenses"). `TableSpec` gets the same idea with a
+`FieldRef` `sort_by` (validated to match the table's entity) — this is the direct fix
+for a real dogfooding bug: "últimos 5 jogos" (last 5 games) used to always return the
+chronologically *first* 5, because table queries had no sort-direction concept at all.
 
 **`team_role="participant"` vs `"home"` for region/year grouping is a real ambiguity,
 not a bug**: a cross-region game genuinely touches two regions, so summing appearances
@@ -228,22 +273,31 @@ totals sum to the real game count) and explicitly warns about `"participant"`'s
 double-attribution risk. If this surfaces again, it's a prompt-tuning problem, not an
 engine bug — the engine's participant math was independently verified correct.
 
+**A "no games found" answer isn't always a bug** — e.g. "quem mais tem defesas de
+título na Região Nordeste" legitimately returns empty: real Nordeste teams have played
+title games, but none of them has ever been the *defender* (`defender_team_id`) at the
+start of one, so zero defenses is the correct answer, not a filter/engine bug. Checked
+directly against the seeded DB before assuming otherwise; see
+`test_defender_role_with_region_filter_returns_empty_when_no_team_defended`.
+
 `backend/app/services/llm_query.py` builds the prompt (grounded with the live list of
-team names/regions/states, so the model can't invent values that don't exist) and calls
-`litellm.completion` per the Cerebras skill (`.claude/skills/cerebras/SKILL.md`),
-requesting `response_format=LLMQueryResponse` — a `status: "ok" | "unsupported"` wrapper
-so the model can decline (e.g. "we have no player-level data") instead of hallucinating
-a chart. Beyond declining, `LLMQueryResponse` also carries an `output: "chart" | "table"`
-discriminator: `"table"` is for questions that want a literal list (e.g. "which games
-did [team] play", "which teams are from São Paulo") rather than an aggregated metric —
-`spec: QuerySpec` is used for `"chart"`, `table: TableSpec` (`entity: "games" | "teams"`
-+ the same `FilterSpec`) for `"table"`. `query_engine.execute_table()` reuses
-`_resolve_filters`/`_passes_team_filters` from the chart path (same fuzzy team-name
-matching, same date-range filter) but returns plain `TableResult(columns, rows: list[
-dict[str,str]])` instead of buckets — no aggregation, no chart-type inference. There's
-no filter by team color ("times vermelhos") — the schema has no color-name vocabulary,
-and the prompt tells the model to decline that specific case with `status="unsupported"`
-rather than guess.
+team names/regions/states/tournaments/venues/phases — `known_field_values()` and its
+thin per-field wrappers in `query_engine.py` — so the model can't invent values that
+don't exist) and calls `litellm.completion` per the Cerebras skill
+(`.claude/skills/cerebras/SKILL.md`), requesting `response_format=LLMQueryResponse` — a
+`status: "ok" | "unsupported"` wrapper so the model can decline (e.g. "we have no
+player-level data") instead of hallucinating a chart. Beyond declining,
+`LLMQueryResponse` also carries an `output: "chart" | "table"` discriminator: `"table"`
+is for questions that want a literal list (e.g. "which games did [team] play", "which
+teams are from São Paulo", "last 5 games") rather than an aggregated metric — `spec:
+QuerySpec` is used for `"chart"`, `table: TableSpec` (`entity: "games" | "teams"` + the
+same `list[FilterClause]`) for `"table"`. `query_engine.execute_table()` reuses
+`_resolve_clause`/`_clause_passes` from the chart path (same fuzzy text matching) but
+returns plain `TableResult(columns, rows: list[dict[str,str]])` instead of buckets — no
+aggregation, no chart-type inference. There's still no filter by team color ("times
+vermelhos") — color was deliberately left off the column whitelist (no color-name
+vocabulary exists), and the prompt tells the model to decline that specific case with
+`status="unsupported"` rather than guess.
 
 `backend/app/services/assistant.py` orchestrates `llm_query.interpret` →
 `query_engine.execute`/`execute_table` into an `AssistantAnswer(status: "ok" |

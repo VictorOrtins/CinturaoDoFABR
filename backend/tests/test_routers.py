@@ -142,7 +142,10 @@ def test_assistant_query_ok_path(
 
     monkeypatch.setattr(settings, "openrouter_api_key", "test-key")
     spec = query_engine.QuerySpec(
-        group_by=query_engine.Dimension.TEAM, team_role=query_engine.TeamRole.DEFENDER
+        group_by=query_engine.FieldRef(
+            entity=query_engine.FieldEntity.TEAM, column="name"
+        ),
+        team_role=query_engine.TeamRole.DEFENDER,
     )
     monkeypatch.setattr(
         llm_query,

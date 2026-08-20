@@ -12,6 +12,9 @@ def test_build_prompt_embeds_grounding_data() -> None:
         team_names=["Team A", "Team B"],
         regions=["sul", "sudeste"],
         states=["RS", "SP"],
+        tournaments=["Campeonato Brasileiro 2020"],
+        venues=["Rio de Janeiro/RJ"],
+        phases=["Final"],
     )
 
     assert messages[-1] == {"role": "user", "content": "quem tem mais defesas"}
@@ -19,6 +22,9 @@ def test_build_prompt_embeds_grounding_data() -> None:
     assert "Team A, Team B" in system
     assert "sul, sudeste" in system
     assert "RS, SP" in system
+    assert "Campeonato Brasileiro 2020" in system
+    assert "Rio de Janeiro/RJ" in system
+    assert "Final" in system
 
 
 def test_interpret_grounds_prompt_in_live_db_data(
