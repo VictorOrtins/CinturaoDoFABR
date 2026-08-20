@@ -16,14 +16,16 @@
   margin-bottom: 1rem;
   background-color: var(--surface);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 2px solid var(--text);
   border-radius: 0.375rem;
+  box-shadow: var(--shadow-hard-sm);
 }
 
 .games-page__table-card {
   background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border: 2px solid var(--text);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-hard);
   padding: 0.5rem 1rem;
   overflow-x: auto;
 }

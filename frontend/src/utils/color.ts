@@ -14,3 +14,14 @@ export function getContrastingTextColor(hex: string | null | undefined): string 
 
   return brightness > 0.6 ? "#171310" : "#ffffff";
 }
+
+/**
+ * The opposite of getContrastingTextColor — used for hard-shadow text
+ * treatments (see docs/DESIGN.md, eatrocketfuel reference) so the shadow
+ * always reads as a genuine two-tone comic outline against an arbitrary
+ * team primary_color, instead of picking a fixed shadow color that could
+ * vanish against some team's brand hue.
+ */
+export function getHardShadowColor(hex: string | null | undefined): string {
+  return getContrastingTextColor(hex) === "#ffffff" ? "#171310" : "#ffffff";
+}

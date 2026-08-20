@@ -10,7 +10,12 @@
   border: 1px solid var(--sidebar-border);
   border-radius: 0.5rem;
   cursor: pointer;
+  box-shadow: none;
   transition: color 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:active {
+  transform: none;
 }
 
 .theme-toggle:hover {

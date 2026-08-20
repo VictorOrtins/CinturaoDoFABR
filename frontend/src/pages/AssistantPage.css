@@ -23,6 +23,7 @@
   font-size: 0.95rem;
   border: 2px solid var(--color-dark-navy);
   border-radius: 999px;
+  box-shadow: var(--shadow-hard-sm);
   transition: border-color 0.15s;
 }
 
@@ -49,8 +50,9 @@
 
 .assistant-page__card {
   background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border: 2px solid var(--text);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-hard);
   padding: 1.5rem;
 }
 

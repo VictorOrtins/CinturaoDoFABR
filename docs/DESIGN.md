@@ -3,13 +3,16 @@
 Why this exists: the original frontend (sidebar nav, white cards, a native
 `<select>` for switching charts, plain sans body copy) was functionally solid but
 read as a generic admin/data-tool UI — "a Streamlit app without Streamlit." The
-user has pointed at two real sites as the design target: [fabrnetwork.com.br](https://fabrnetwork.com.br/)
-(a Brazilian American-football league site — closest in *subject matter*) and
+user has pointed at real sites as the design target: [fabrnetwork.com.br](https://fabrnetwork.com.br/)
+(a Brazilian American-football league site — closest in *subject matter*),
 [coparadiso.com](https://www.coparadiso.com/) (a Melbourne coworking space — closest
-in *personality and craft*). Neither should be copied outright; both are studied here
-for the underlying moves, which get adapted to this app's own subject (a single running
-joke: American football in Brazil, presented like a boxing "belt lineage") and its
-own brand tokens (Anton/Manrope/IBM Plex Mono type system, the "Arena" palette in
+in *personality and craft*), and — added in a later session, once the first redesign
+pass still felt "off" — [eatrocketfuel](https://webflow.com/made-in-webflow/website/eatrocketfuel)
+(a Webflow showcase site, closest in *the 8-bit/pixel-art energy the user wants next*).
+None should be copied outright; all are studied here for the underlying moves, which get
+adapted to this app's own subject (a single running joke: American football in Brazil,
+presented like a boxing "belt lineage" — itself already game-ladder shaped) and its own
+brand tokens (Anton/Manrope/IBM Plex Mono type system, the "Arena" palette in
 `frontend/src/index.css` — see CLAUDE.MD's Color Scheme section for the current
 hex values and how it was chosen). Nav moved from a sidebar to a topbar in the
 palette-decision session; treat mentions of "sidebar" below as describing the
@@ -87,6 +90,115 @@ file to match afterward.
    coworking space with real personality, real community..."). The copywriting voice is
    as much a design decision as the visuals.
 
+## What defines eatrocketfuel (Webflow showcase) — the 8-bit reference
+
+First checked 2026-08-19 via a text-only fetch, then **actually browsed live** at
+eatrocketfuel.webflow.io the same session once the Chrome extension reconnected — the
+live-browse corrected several assumptions the text-only pass got wrong, so treat this
+version as authoritative. It is *not* a full pixel-grid site the way NES/SNES game art
+is; it's a **comic/pop-art retro system with pixel-art used as an accent**, not the
+whole typographic or illustration language:
+
+1. **Bold, rounded, all-caps comic-bubble headline type with a hard (never blurred)
+   black offset duplicate behind it** — "REFUEL YOUR SHIP," "CHECK OUT THE ROCKET
+   MENU." This is the dominant voice on the page, and it is a chunky rounded sans, not
+   a monospace pixel font. The genuinely pixel-grid elements (see #3-4) are accents on
+   top of this, not the headline system itself.
+2. **A halftone/Ben-Day dot texture as the default fill for solid color panels** — the
+   purple hero, the green promo block, and the footer are all one saturated flat hue
+   with a faint dot-pattern overlay (not a gradient, not a photo), and the same dot
+   texture is reused as *dithered shading* on illustrated spheres (a halftone moon).
+   Cheap to reproduce (a repeating SVG/CSS pattern) and needs no photography or new
+   illustration — probably the single highest-value/lowest-effort item here.
+3. **A jagged, pixel-stepped dashed border, reserved specifically for speech-bubble/
+   callout shapes** ("ORDER HERE," "TIME 2 REFUEL?" — copy cycles inside on a timer).
+   This is the one element on the page that is unambiguously "8-bit UI": a genuinely
+   stepped/pixelated outline instead of a smooth curve, used narrowly as a callout
+   device rather than applied to every box.
+4. **Small chunky pixel-cross "sparkle" icons** scattered through the space scene as
+   stars/twinkles, built on a visible pixel grid — and the small prop icons (burger,
+   fries, drink, condiment bottles) read noticeably more pixelated/blocky than the
+   hero astronaut character, which is smooth flat vector line art with a black
+   outline. **The pixel treatment is reserved for small accessory icons and borders,
+   not hero illustrations** — the astronaut is drawn the same clean way coparadiso or
+   this app's own `BeltIcon` line art already is.
+5. **Real product photography, still present** — burger, onion rings, fries, and
+   apparel shots are actual photos, not illustrations. What makes them fit the system
+   is the treatment wrapped around them: a thick black outline, a hard offset shadow,
+   a comic "starburst" badge ("ORDER NOW," like a comic-book POW shape), and a wavy
+   black-outline divider between the photo and the price label below it. Photography
+   isn't excluded from an 8-bit/retro system — it just needs the same hard-outline
+   treatment as everything else to fit.
+6. **Hard, un-blurred black borders and offset shadows on every card, button, and
+   pill** — confirms the button/card direction already listed below (item 10):
+   square-ish corners, a flat solid-color offset shadow instead of a blurred one, thick
+   black stroke.
+7. **Saturated, single-hue full-bleed section blocks** (violet, hot pink, mint green)
+   rather than gradients — each section changes background color wholesale, high
+   contrast against black outlines and white text, no soft blending between sections.
+8. **A rotating circular sticker badge** (logo + tagline, "a space cadet is currently
+   refueling") in the footer — the same device DESIGN.md already logs from coparadiso's
+   circular "sticker" motif; worth doing once regardless of which reference gets credit
+   for it.
+
+I did not find a literal scrolling marquee/ticker band on the live page despite it
+being one of the site's own tags — likely refers to the swirling background motion or
+a state I scrolled past. Don't treat "marquee ticker" as confirmed-present the way the
+items above are; the coparadiso reference (still open, item 11 below) is the sturdier
+basis for that specific idea.
+
+**A note on workos.com/launch-week/summer-2026**: checked as the user's second link,
+but it has drifted since it was first suggested — it now reads as a curated *cinematic
+80s/90s nostalgia* piece (CRT television, VHS tapes, Blockbuster branding, a TRON
+poster, a DeLorean), not pixel art. Worth knowing this reference exists in case a
+future session wants that different flavor of retro, but per the user's own steer,
+**eatrocketfuel is the one to actually mine for 8-bit moves** — treat WorkOS as
+checked-and-parked, not a current input.
+
+### Translating "8-bit" for this app specifically
+
+The existing "Arena" palette and Anton/Manrope/IBM Plex Mono system don't need to be
+replaced to read as 8-bit — most of the genre's punch comes from *how shapes, edges,
+and fills are drawn*, not from new hex values or a wholesale pixel-font swap:
+
+- **Hard edges over soft ones**: today's buttons/cards use `border-radius` +
+  blurred `box-shadow`. An 8-bit pass means square corners and *stepped, solid-offset*
+  shadows (a flat 2-4px hard offset, no blur) — the classic NES button bezel — with the
+  shadow removed and the element nudged down on `:active` to read as "pressed." Most
+  directly confirmed by the reference (its #6) — the highest-confidence item here.
+- **A halftone dot-texture fill utility**, reused as a background on existing
+  `--surface`/hero blocks in the current Arena palette (amber/crimson/near-black/
+  parchment, not new colors) — a repeating dot pattern rather than a flat fill or a
+  gradient. Reachable without new illustration or photography, confirmed by the
+  reference's #2 as its actual highest-leverage/lowest-effort move.
+- **A pixel-stepped dashed border, scoped to callout/speech-bubble-shaped moments
+  only** — a "current champion" banner, an empty-state box, an assistant chat bubble
+  in `AssistantPage.tsx` — not applied globally to every card. Mirrors the reference's
+  #3 exactly: the one clearly-pixel element on their page is scoped this narrowly too.
+- **Pixel treatment belongs on small accessory icons/borders, not hero illustrations**
+  — per the reference's #4, `BeltIcon.tsx`'s line art and any astronaut-equivalent
+  hero graphic should probably stay clean vector, while small decorative marks (stars,
+  chip corner accents, a "sparkle" on the champion badge) are where a visible pixel
+  grid actually belongs. This walks back an earlier draft of this section that
+  proposed sprite-ifying `BeltIcon` itself — do the small accents first and see if a
+  full sprite redraw is even still wanted.
+- **One pixel typeface, used as narrowly as coparadiso's script face** — not a
+  replacement for Anton or Manrope, and not what carries the "8-bit" read on the
+  reference site either (its headlines are a bold rounded sans, not a pixel font). A
+  genuine pixel face (e.g. "Press Start 2P") is a secondary accent at most: score
+  numerals, a win count, a numeric chip badge. This would be a 4th type register on
+  top of the existing three — the DESIGN.md discipline from the coparadiso section
+  ("assign by role, don't add a 4th casually") still applies.
+- **The belt-lineage concept is already game-shaped** — "who currently holds the belt"
+  is structurally a game ladder/leaderboard, which is the underlying reason this
+  direction fits the app's actual subject rather than being a generic reskin.
+- **A scoreboard/ticker band** under the topbar is still worth trying (carried over
+  from the coparadiso marquee idea, item 8) but is no longer treated as confirmed by
+  eatrocketfuel specifically — see the caveat above.
+- **Real photography, if/when available, doesn't need to be avoided** — wrap it in the
+  same hard-outline + offset-shadow + comic-badge system used everywhere else (the
+  reference's #5) rather than assuming an illustration-only approach is required.
+
 ## Why the current app still reads as "Streamlit"
 
 - Every page is the same shape: a heading, a paragraph, a plain white/dark `--surface`
@@ -159,6 +271,52 @@ rather than re-inventing.
    values and the note on chart components needing hardcoded hex duplicates instead
    of `var(...)`.
 
+10. **Hard-edge, hard-shadow buttons and cards** — swap `button`'s current
+    `border-radius: 0.375rem` + soft styling (`index.css`) for square corners and a
+    flat, un-blurred offset shadow that collapses on `:active` (press feedback). Same
+    idea extends to `.chip` and card surfaces (`--surface` blocks across the pages).
+    Highest-confidence item — directly confirmed live on eatrocketfuel (every card/
+    button/pill on the site works this way).
+11. **A halftone dot-texture fill utility** — a repeating dot pattern (SVG or CSS
+    `radial-gradient` tile) applied to existing `--surface`/hero blocks, in the current
+    Arena palette, no new colors needed. Confirmed live as eatrocketfuel's actual
+    highest-leverage/lowest-effort move (it's their default panel fill, not a special
+    case) and it needs no new illustration or photography — probably the single
+    cheapest win on this list.
+12. **A pixel-stepped dashed border, scoped to callout-shaped moments only** — a
+    "current champion" banner, an empty-state box, an `AssistantPage.tsx` chat bubble.
+    Confirmed live as the one genuinely pixel-grid element on eatrocketfuel, and it's
+    used narrowly there too (speech bubbles only, not every card) — don't apply this
+    globally.
+13. **Small pixel-grid accent icons** (a sparkle/star mark on a champion badge, a chip
+    corner accent) rather than a full sprite redraw of `BeltIcon.tsx`/`LoadingBelt.tsx`
+    — confirmed live that eatrocketfuel keeps its hero character (the astronaut) as
+    clean vector line art and reserves the visible pixel grid for small decorative
+    props/stars instead. Do this before considering a full `BeltIcon` sprite redraw;
+    the smooth line art may already be the right call once these small accents exist
+    elsewhere on the page.
+14. **A scoreboard/ticker band under `Topbar.tsx`** — the coparadiso marquee idea
+    (item 8): recent results scrolling in mono/pixel type on a solid dark strip. Still
+    worth trying, but note it's carried over from coparadiso, not something actually
+    confirmed present on eatrocketfuel's live page despite being one of its tags.
+15. **One pixel typeface (e.g. "Press Start 2P"), scoped narrowly** — score numerals,
+    win counts, numeric chip badges only. Not for prose, not a replacement for
+    Anton/Manrope/IBM Plex Mono, and — confirmed live — not even what carries the
+    "8-bit" read on the reference site itself (its headlines are a bold rounded sans
+    with a hard offset shadow, not a pixel font; see item 10). Treat as a minor accent
+    on top of items 10-12, not the main event.
+16. **Wrap real photography (if/when available) in the same hard-outline system**,
+    rather than assuming illustration/parallax is the only photo-free path — confirmed
+    live that eatrocketfuel uses real product photos for menu items, made to fit by
+    adding a thick black outline, a hard offset shadow, and a comic "starburst" badge
+    on top, the same treatment as every illustrated element. A restrained parallax
+    starfield for hero sections (low-opacity, theme-aware, `prefers-reduced-motion`-
+    respecting) is still a reasonable *separate* idea, just not framed as photography's
+    substitute.
+
 None of these require a new dependency or framework change — they're CSS, layout, and
 a small amount of new illustration/type, on top of the existing React + CSS-custom-
-property setup already in place.
+property setup already in place. Items 10-16 are new (2026-08-19; 11-13 and the caveats
+on 14-16 added after live-browsing the reference, correcting an earlier text-only-fetch
+draft) and unimplemented — pick them up individually rather than attempted as one big
+pass, same rule the ✅ items above already followed.

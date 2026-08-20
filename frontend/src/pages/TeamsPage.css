@@ -26,16 +26,22 @@
   gap: 0.75rem;
   padding: 1.25rem 1rem;
   background-color: var(--surface);
-  border: 1px solid var(--border);
+  border: 2px solid var(--text);
   border-top: 4px solid var(--team-color, var(--color-accent-yellow));
-  border-radius: 0.75rem;
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-hard);
   text-decoration: none;
   transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .team-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(13, 27, 47, 0.16);
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--text);
+}
+
+.team-card:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 0 var(--text);
 }
 
 .team-card__name {
