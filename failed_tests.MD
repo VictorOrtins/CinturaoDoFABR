@@ -1,3 +1,0 @@
-Mostre-me uma tabela com os últimos 5 jogos do cinturão => Mostrou uma tabela com os 5 primeiros jogos, não os 5 últimos
-Qual letra inicial teve mais times disputando o cinturão? => A pergunta requer agrupar por letra inicial dos nomes dos times, que não está entre as dimensões disponíveis (team, region, year).
-Quem mais tem defesas de título na Região Nordeste => Não encontrei jogos que respondam essa pergunta.
