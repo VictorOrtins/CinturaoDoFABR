@@ -24,7 +24,9 @@
   align-items: center;
   gap: 1rem;
   padding: 3rem 1.5rem;
-  border-radius: 1rem;
+  border-radius: 0.5rem;
+  border: 3px solid var(--hero-ink, var(--text));
+  box-shadow: 6px 6px 0 0 var(--hero-shadow, var(--text));
   text-align: center;
 }
 
@@ -32,6 +34,7 @@
   margin: 0;
   color: inherit;
   font-size: 2rem;
+  text-shadow: 3px 3px 0 var(--hero-shadow, transparent);
 }
 
 .team-detail-page__logo-plate {
@@ -42,14 +45,16 @@
   height: 128px;
   border-radius: 50%;
   background-color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  border: 3px solid var(--hero-ink, var(--text));
+  box-shadow: 4px 4px 0 0 var(--hero-shadow, var(--text));
 }
 
 .team-detail-page__bio {
   margin: 1.5rem 0 0;
   background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border: 2px solid var(--text);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-hard);
   padding: 0 1.5rem;
 }
 
@@ -99,8 +104,9 @@
   margin: 0;
   padding: 0;
   background-color: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border: 2px solid var(--text);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow-hard);
   overflow: hidden;
 }
 

@@ -33,7 +33,11 @@ export function TeamsPage() {
               className="team-card"
               style={{ "--team-color": team.primary_color ?? "var(--color-dark-navy)" } as CSSProperties}
             >
-              <TeamLogo team={team} size={56} />
+              <div className="team-card__header">
+                <div className="team-card__logo-plate">
+                  <TeamLogo team={team} size={44} />
+                </div>
+              </div>
               <span className="team-card__name">{team.name}</span>
             </Link>
           ))}

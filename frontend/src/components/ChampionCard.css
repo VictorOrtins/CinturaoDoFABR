@@ -4,9 +4,27 @@
   align-items: center;
   gap: 0.5rem;
   padding: 1.5rem 2.5rem;
-  border-radius: 0.75rem;
-  background-color: var(--surface);
-  border: 2px solid var(--color-accent-yellow);
+  border-radius: 0.5rem;
+  border: 3px solid var(--hero-ink);
+  box-shadow: 6px 6px 0 0 var(--hero-shadow);
+  /* Dashed "prize ticket" callout (see docs/DESIGN.md item 12) — the one
+     genuinely pixel/8-bit device on the eatrocketfuel reference, reserved
+     for this single most important moment on the site: who holds the belt. */
+  outline: 3px dashed var(--hero-ink);
+  outline-offset: 7px;
+  margin: 7px;
+}
+
+.champion-card__logo-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.92);
+  border: 3px solid var(--hero-ink);
+  box-shadow: 4px 4px 0 0 var(--hero-shadow);
 }
 
 .champion-card__name {
@@ -15,16 +33,18 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   font-size: 1.5rem;
-  color: var(--color-dark-navy);
+  color: inherit;
+  text-shadow: 3px 3px 0 var(--hero-shadow);
   text-decoration: none;
   margin: 0;
 }
 
 .champion-card__name:hover {
-  color: var(--color-blue-primary);
+  text-decoration: underline;
 }
 
 .champion-card__since {
-  color: var(--color-gray-text);
+  color: inherit;
+  opacity: 0.8;
   margin: 0;
 }

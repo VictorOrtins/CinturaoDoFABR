@@ -1,4 +1,4 @@
-export const FALLBACK_TEAM_COLOR = "#f0a202";
+export const FALLBACK_TEAM_COLOR = "#ffb703";
 
 export const tooltipContentStyle = {
   background: "var(--surface)",

@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { Game, Team } from "../api/types";
 import { LoadingBelt } from "../components/LoadingBelt";
 import { TeamLogo } from "../components/TeamLogo";
-import { getContrastingTextColor } from "../utils/color";
+import { getContrastingTextColor, getHardShadowColor } from "../utils/color";
 import "./TeamDetailPage.css";
 
 const REGION_LABELS: Record<string, string> = {
@@ -63,11 +63,15 @@ export function TeamDetailPage() {
       {!error && team && (
         <>
           <div
-            className="team-detail-page__hero"
-            style={{
-              backgroundColor: team.primary_color ?? "var(--color-dark-navy)",
-              color: getContrastingTextColor(team.primary_color),
-            }}
+            className="team-detail-page__hero halftone"
+            style={
+              {
+                backgroundColor: team.primary_color ?? "var(--color-dark-navy)",
+                color: getContrastingTextColor(team.primary_color),
+                "--hero-ink": getContrastingTextColor(team.primary_color),
+                "--hero-shadow": getHardShadowColor(team.primary_color),
+              } as CSSProperties
+            }
           >
             <div className="team-detail-page__logo-plate">
               <TeamLogo team={team} size={96} />

@@ -1,10 +1,14 @@
 :root {
   /* "Arena" palette — fight-night poster mood: near-black ink, amber
      spotlight accent, crimson secondary, warm parchment surfaces. Replaced
-     the earlier navy/blue/purple set (see CLAUDE.MD Color Scheme). */
-  --color-accent-yellow: #f0a202;
-  --color-blue-primary: #5b7a99;
-  --color-purple-secondary: #b3261e;
+     the earlier navy/blue/purple set (see CLAUDE.MD Color Scheme). Accent
+     and secondary hues saturated up for the 8-bit/arcade pass (2026-08-20)
+     — flat, cartridge-vivid colors instead of the original dusty/muted
+     tones; ink and parchment left as-is since they already read as
+     high-contrast "cabinet" black-on-cream. */
+  --color-accent-yellow: #ffb703;
+  --color-blue-primary: #1a54c4;
+  --color-purple-secondary: #e2231a;
   --color-dark-navy: #171310;
   --color-gray-text: #7a7168;
 
@@ -24,6 +28,13 @@
      bio-card labels, chips — the "spec sheet" voice, never prose. */
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
+  /* 8-bit pass (see docs/DESIGN.md, eatrocketfuel reference, items 10-11):
+     hard un-blurred offset shadows instead of soft/blurred ones, using --text
+     as the "ink" so the shadow flips light/dark with the theme like
+     --color-dark-navy already does. */
+  --shadow-hard: 4px 4px 0 0 var(--text);
+  --shadow-hard-sm: 2px 2px 0 0 var(--text);
+
   font-family: "Manrope", system-ui, "Segoe UI", Roboto, sans-serif;
   color: var(--text);
   background-color: var(--bg);
@@ -32,8 +43,8 @@
 [data-theme="dark"] {
   --color-dark-navy: #f3ece0;
   --color-gray-text: #a89e8f;
-  --color-blue-primary: #7fa0c2;
-  --color-purple-secondary: #e0574c;
+  --color-blue-primary: #5f95ff;
+  --color-purple-secondary: #f23c2c;
 
   --bg: #0b0908;
   --surface: #17130f;
@@ -61,6 +72,17 @@ h3 {
   text-transform: uppercase;
 }
 
+/* Comic-sticker hard-shadow headline (see docs/DESIGN.md, eatrocketfuel
+   reference — its dominant device, "REFUEL YOUR SHIP"). Scoped to h1 only:
+   one per page, so it reads as a deliberate signature moment rather than
+   noise on every section header. text-shadow inherits, so a hero element
+   with a dynamic per-team background can override this per-instance (see
+   TeamDetailPage, ChampionCard) with a shadow color computed to contrast
+   against that background instead of the fixed accent. */
+h1 {
+  text-shadow: 4px 4px 0 var(--color-accent-yellow);
+}
+
 a {
   color: var(--color-blue-primary);
 }
@@ -69,10 +91,18 @@ button {
   font-family: inherit;
   background-color: var(--color-purple-secondary);
   color: white;
-  border: none;
+  border: 2px solid var(--text);
   border-radius: 0.375rem;
   padding: 0.5rem 1rem;
   cursor: pointer;
+  box-shadow: var(--shadow-hard);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+/* Classic pressed-button feedback: shadow collapses, button steps into it. */
+button:active {
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 0 var(--text);
 }
 
 /* Reusable category/status pill — tournaments, phases, match status. */
@@ -86,6 +116,19 @@ button {
   white-space: nowrap;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
+  border: 1.5px solid var(--text);
   background-color: color-mix(in srgb, var(--color-blue-primary) 16%, transparent);
   color: var(--color-blue-primary);
+  box-shadow: var(--shadow-hard-sm);
+}
+
+/* Dot-texture fill (see docs/DESIGN.md item 11) — a subtle halftone/Ben-Day
+   overlay for hero/panel backgrounds. Blends against whatever background-color
+   the element already has (inline or inherited), so it works over any team
+   primary_color without needing a second color token. Apply narrowly — hero
+   panels only, not every card. */
+.halftone {
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.35) 1px, transparent 1.6px);
+  background-size: 10px 10px;
+  background-blend-mode: multiply;
 }

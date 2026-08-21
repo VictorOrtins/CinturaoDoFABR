@@ -16,7 +16,7 @@ export function LabeledBarChart<T extends { value: number }>({
   const { theme } = useTheme();
   const axisColor = theme === "dark" ? "#a89e8f" : "#7a7168";
   const gridColor = theme === "dark" ? "rgba(255, 255, 255, 0.1)" : "rgba(23, 19, 16, 0.14)";
-  const barColor = theme === "dark" ? "#e0574c" : "#b3261e";
+  const barColor = theme === "dark" ? "#f23c2c" : "#e2231a";
 
   return (
     <ResponsiveContainer width="100%" height={320}>
