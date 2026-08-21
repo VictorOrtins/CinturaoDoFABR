@@ -64,6 +64,21 @@ change "isn't working" when checked live, confirm the server was actually restar
 after the edit before debugging the code itself; a stale process is a more likely
 culprit than it seems.
 
+**Gotcha**: the `frontend` container serves a **static production build via Nginx**
+(multi-stage Dockerfile: `vite build` → `nginx:alpine`), not a Vite dev server — there is
+no bind mount, no HMR. A source edit changes nothing at `localhost:5173` until the image
+is rebuilt (`scripts/stop-linux.sh && scripts/start-linux.sh`, or
+`docker compose up --build -d`) *and* the browser does a real hard reload
+(`ctrl+shift+r`) directly on the target route — a stale service-worker/HTTP cache can
+still show the old page even after a correct rebuild. When a visual change "isn't
+showing up" after the user reports restarting Docker, verify the built bundle actually
+contains the change before assuming the rebuild pipeline is broken:
+`docker compose exec frontend sh -c "grep -o '<distinctive string>' /usr/share/nginx/html/assets/*.css"`.
+If that confirms the new CSS is being served, the remaining cause is almost always the
+browser tab, not the pipeline — a throwaway, impossible-to-miss CSS marker (giant
+striped banner, deleted once confirmed) is a fast way to get the user to confirm this
+themselves rather than trading screenshots back and forth.
+
 ### Database
 
 Backend uses SQLite as a "temporary database" — no separate DB container. On startup,
@@ -396,14 +411,19 @@ version of the original navy/blue/purple set, and a turf-green "Campo" direction
 fight-night-poster mood, near-black ink, amber spotlight accent, crimson secondary,
 warm parchment surfaces in light mode. Accent and secondary hues were saturated up
 2026-08-20 as part of an 8-bit/arcade pass (see docs/DESIGN.md) — flat, cartridge-vivid
-yellow/blue/red instead of the original dusty/muted tones; ink, gray, and the parchment
-surfaces were left as-is since they already read as high-contrast "cabinet" black-on-
-cream. Defined as CSS custom properties in `frontend/src/index.css` (`:root` for light,
-`[data-theme="dark"]` for dark) — these hex values are the light-mode ones; see that
-file for the dark-mode overrides.
+colors instead of the original dusty/muted tones; ink, gray, and the parchment surfaces
+were left as-is since they already read as high-contrast "cabinet" black-on-cream. Later
+the same day, a broader color-block pass (flat-fill topbar/chips/table-header, a swap to
+arcade green) was tried and then explicitly reverted per user feedback ("looks
+childish") — see docs/DESIGN.md items 18-19 and their revert note. The saturated accent/
+secondary hues from the first pass stayed; the topbar, chips, table header, and h2
+styling are back to their pre-8-bit-pass look (near-black topbar, soft-tint chips, plain
+colored section headings). Defined as CSS custom properties in `frontend/src/index.css`
+(`:root` for light, `[data-theme="dark"]` for dark) — these hex values are the
+light-mode ones; see that file for the dark-mode overrides.
 - Accent Yellow (amber spotlight): #ffb703
-- Blue Primary (arcade blue, secondary/links): #1a54c4
-- Purple Secondary (arcade red, CTA/secondary-button role): #e2231a
+- Blue Primary (secondary/links): #1a54c4
+- Purple Secondary (crimson, CTA/secondary-button role): #e2231a
 - Dark Navy (ink, headings): #171310
 - Gray Text: #7a7168
 - Page background (parchment): #efe6d3
@@ -417,4 +437,28 @@ changes again, grep those two files (and `chartTheme.ts`'s `FALLBACK_TEAM_COLOR`
 left as a fixed near-black/white pair independent of the brand accent hues) along with
 `index.css`. `TitlesByRegionChart`'s 5-slot region palette is deliberately independent
 of the app's brand tokens (regions aren't teams) and wasn't touched.
+
+**For future "make it more 8-bit" / palette-punch-up requests**, read this before
+touching color again — it's the compressed result of a same-day ship-then-revert cycle
+(full narrative in docs/DESIGN.md items 17-19):
+- **What landed and stayed**: saturating the existing accent/secondary hues (item 17,
+  values above) — same color *roles*, just more vivid. And, separately, per-team full-
+  color header blocks on the Teams-grid cards (`frontend/src/pages/TeamsPage.tsx`/`.css`,
+  `.team-card__header` using each team's own `primary_color`) — the user explicitly
+  called this out as the one thing they liked from the broader color-block pass.
+- **What was tried and explicitly rejected as "childish"**: turning site-wide *chrome*
+  (topbar background, `.chip` fill, every `h2`, the games-table header) into solid
+  flat-fill color blocks — a stamped-yellow-tag `h2`, a solid-blue-then-green topbar, a
+  solid-fill table header band. The user's own framing: it wasn't the specific hue
+  (blue vs. green) that was wrong, it was the flat/cartoonish color-blocking itself
+  applied everywhere at once.
+- **Working theory for next time**: color surface area that's tied to real content
+  (a team's actual brand color on that team's own card) reads as intentional and
+  earns its size; color surface area applied uniformly to UI chrome regardless of
+  content (nav bar, generic section headers, table header row) reads as a costume. If
+  asked to push the palette further, prefer extending the *first* pattern (more
+  content-driven color, e.g. more places that already show a team/tournament identity)
+  over repeating the second (recoloring more generic chrome solid). Confirm scope and
+  show one example live before spreading a flat-fill treatment across every instance of
+  an element site-wide again.
 

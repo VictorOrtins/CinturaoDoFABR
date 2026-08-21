@@ -335,3 +335,38 @@ remain open.
     surface tones untouched — they already read as high-contrast "cabinet" black-on-
     cream and didn't need to move. See CLAUDE.MD's Color Scheme section for the
     current hex values and the note on where they're duplicated for SVG chart props.
+
+18. **Spread the palette across more surface area, not just accents** — after 17
+    shipped, the color change still didn't register: it only touched small-footprint
+    elements (links, one button, chart lines). Added: the topbar as its own flat color-
+    block surface (`--topbar-bg`, new token, plus a thick solid-yellow bottom stripe
+    replacing the old 1px hairline border) since it's the one surface visible on every
+    page; `.chip` switched from a 16%-tint fill to a solid flat fill; every `h2` site-
+    wide became a stamped "cartridge label" tag (solid yellow fill, hard ink border/
+    shadow) instead of plain colored text; the games table header became a solid-fill
+    "scoreboard" band; and Teams-grid cards grew from a 4px top color stripe to a full
+    colored header block per team (reusing each team's own `primary_color`, already
+    computed elsewhere for ChampionCard/TeamDetailPage). Confirmed the "no visible
+    change" complaint that prompted this was actually the Docker image not rebuilding on
+    the user's machine (root-caused with a throwaway high-visibility CSS marker,
+    deleted once confirmed) — but the under-coverage problem was real too and this item
+    was the fix for it.
+    **2026-08-20, reverted (except the Teams-grid cards):** user feedback was
+    "this looks childish" — the flat color-block topbar, solid chips, stamped-tag `h2`s,
+    and scoreboard table header were reverted back to their pre-pass look (near-black
+    topbar/1px border, soft-tint chips, plain colored section headings). The Teams-grid
+    full-color team-header cards were the one part of this item the user explicitly
+    liked and asked to keep — ✅ that piece only.
+
+19. **Swap `--color-blue-primary` from blue to arcade green** — even after 18, the
+    blue read as more "corporate SaaS" than "80s cartridge." Real NES-era box art leaned
+    on a red/yellow/green primary triad (Contra, Punch-Out!!) rather than blue, and green
+    doubles as the boxing-ring-canvas color for this app's boxing-inspired premise (see
+    the Home page copy). Swapped the topbar background, links, `.chip` fill, and the
+    games-table header band from blue to green.
+    **2026-08-20, reverted:** part of the same "looks childish" feedback as item 18 —
+    `--color-blue-primary` is back to blue (#1a54c4 light / #5f95ff dark, item 17's
+    values). Worth knowing for future attempts: the user's read was specifically that
+    the flat, cartoonish color-blocking (not the hue choice per se) felt off — a lighter-
+    touch approach to "more color surface area" may land better than solid-fill panels
+    everywhere.
