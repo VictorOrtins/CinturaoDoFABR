@@ -1,6 +1,3 @@
-import os
-import sys
-
 from typing import List
 
 import pandas as pd
@@ -12,8 +9,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from src.utils.utils import get_dominant_color
 

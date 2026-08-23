@@ -2,6 +2,8 @@ import os
 
 import pandas as pd
 
+from src.utils.team_aliases import TEAM_NAME_ALIASES
+
 
 class Preprocessor:
     def __init__(self):
@@ -139,32 +141,11 @@ class Preprocessor:
         return games_df
     
     def __fix_teams_names(self, games_df: pd.DataFrame):
-        games_df['Mandante'] = games_df['Mandante'].apply(lambda x: self.__fix_names(x))
-        games_df['Visitante'] = games_df['Visitante'].apply(lambda x: self.__fix_names(x))
+        games_df['Mandante'] = games_df['Mandante'].replace(TEAM_NAME_ALIASES)
+        games_df['Visitante'] = games_df['Visitante'].replace(TEAM_NAME_ALIASES)
 
         return games_df
-    
-    def __fix_names(self, team_name: str):
-        if team_name == 'Sada Cruzeiro' or team_name == 'Galo FA':
-            return 'Sada Cruzeiro/Galo FA'
-        
-        if team_name == 'Fluminense Imperadores':
-            return 'Fluminense FA'
-        
-        if team_name == 'Foz Black Sharks':
-            return 'Foz do Iguaçu Black Sharks'
-        
-        if team_name == 'Joinville Gladiators':
-            return 'JEC Gladiators'
-        
-        if team_name == 'Juventude FA':
-            return 'União da Serræ/Juventude FA'
-        
-        if team_name == 'Vila Velha Tritões':
-            return 'Tritões FA'
-        
-        return team_name
-    
+
     def __fix_competions_names(self, games_df: pd.DataFrame):
         games_df['Torneio'] = games_df['Torneio'].apply(lambda x: self.__fix_competions_names_row(x))
         return games_df

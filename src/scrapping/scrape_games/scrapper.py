@@ -1,7 +1,5 @@
 from io import StringIO
-import os
-import sys
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 
@@ -13,15 +11,18 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
-
 from src.utils.utils import is_datetime
 
 
 class GamesScrapper:
-    def __init__(self, urls_to_scrape: List[str], save_path, wait_time=30):
+    def __init__(self, urls_to_scrape: List[str], save_path, wait_time=30, optional_element_wait_time=3):
         self.urls_to_scrape = urls_to_scrape
         self.wait_time = wait_time
+        # Pagination buttons / result cards are rendered server-side, not loaded async:
+        # if they're going to appear at all, they appear near-instantly. A short wait
+        # here still catches real content but avoids paying the full wait_time on every
+        # tab that simply doesn't use that layout (confirmed most tabs don't).
+        self.optional_element_wait_time = optional_element_wait_time
         self.save_path = save_path
 
         self.driver = None
@@ -110,14 +111,14 @@ class GamesScrapper:
         
         return True
     
-    def __find_elements(self, by: By, pattern: str) -> List[WebElement]:
+    def __find_elements(self, by: By, pattern: str, timeout: Optional[int] = None) -> List[WebElement]:
         try:
-            WebDriverWait(self.driver, self.wait_time).until(
+            WebDriverWait(self.driver, timeout if timeout is not None else self.wait_time).until(
                 EC.presence_of_element_located((by, pattern))
             )
         except Exception:
             return None
-        
+
         elements = self.driver.find_elements(by, pattern)
 
         return elements
@@ -133,7 +134,7 @@ class GamesScrapper:
             if not self.__get_tab_url(scrape_url):
                 continue
 
-            buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button")
+            buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button", timeout=self.optional_element_wait_time)
 
             if buttons is not None:
                 for button in buttons:
@@ -166,7 +167,7 @@ class GamesScrapper:
         all_games_cards = pd.DataFrame()
 
         try:
-            WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
+            WebDriverWait(self.driver, self.optional_element_wait_time).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
         except Exception:
             return None
         

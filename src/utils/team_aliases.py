@@ -1,0 +1,15 @@
+TEAM_NAME_ALIASES: dict[str, str] = {
+    "Sada Cruzeiro": "Sada Cruzeiro/Galo FA",
+    "Galo FA": "Sada Cruzeiro/Galo FA",
+    "Galo Futebol Americano": "Sada Cruzeiro/Galo FA",
+    "Fluminense Imperadores": "Fluminense FA",
+    "Foz Black Sharks": "Foz do Iguaçu Black Sharks",
+    "Joinville Gladiators": "JEC Gladiators",
+    "Juventude FA": "União da Serra/Juventude FA",
+    "União da Serra": "União da Serra/Juventude FA",
+    "Vila Velha Tritões": "Tritões FA",
+    "Six Spartans": "Spartans Football",
+    "Blaze Futebol Americano": "Blaze FA",
+    "Istepôs Futebol Americano": "Istepôs FA",
+    "América Locomotiva": "Locomotiva FA",
+}

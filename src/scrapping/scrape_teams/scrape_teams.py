@@ -1,5 +1,5 @@
-from get_urls import TeamUrlsScrapper
-from scrapper import TeamsScrapper
+from src.scrapping.scrape_teams.get_urls import TeamUrlsScrapper
+from src.scrapping.scrape_teams.scrapper import TeamsScrapper
 
 
 if __name__ == '__main__':

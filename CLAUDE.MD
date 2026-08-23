@@ -109,6 +109,53 @@ deleted when `backend/`/`frontend/` are added. Its view/UX is a guide, not a spe
 match exactly (see Overview above). It can be removed in a future ticket once the new
 app reaches parity.
 
+### Scraping (`src/scrapping/`)
+
+A data-engineering pipeline (scrape → DB → deploy) is being built on top of the
+existing Selenium scraper against `www.salaooval.com.br` — see
+[`docs/DATA_PIPELINE.md`](docs/DATA_PIPELINE.md) for the full plan/phases; this section
+only covers gotchas confirmed while verifying the scraper itself still works (2026-08,
+~2 years untouched).
+
+**`GamesScrapper.__scrape_tournament`'s tab-visiting loop looks redundant but is load-
+bearing — don't collapse it.** It fully reloads the tournament page once per tab label
+(e.g. "Informações"/"Campeões"/"Tabela"/"Equipes"/"Notícias", not just the games tab)
+and re-scrapes each time, deduping after the fact via `drop_duplicates`. Confirmed: on
+at least one table-only tournament layout, every tab's reload yields the exact same
+rows (all data is present on a single page load, no anchor needed) — so the loop is
+provably wasteful *for that layout*. It was deliberately left alone anyway: whether
+*every* tournament layout behaves this way was never verified (e.g. `campeonato-
+brasileiro-2012`'s "Nordeste"/"Central"/"Sul"/"Playoffs" tabs could plausibly hold
+genuinely different games per tab), and collapsing the loop risks silently dropping
+real per-tab data on a layout that does differ. If this gets revisited, verify per-tab
+content differs (or doesn't) across a representative sample of tournament layouts
+before touching the loop, not just the one layout already checked.
+
+**Real content on this site always renders near-instantly — a long wait is only ever
+paid for something that doesn't exist.** `wait_time` (default 30s, used for the tab-list
+and per-row lookups once a card/table is confirmed present) and
+`optional_element_wait_time` (3s, used only for the "does this tab have pagination /
+does this tab have cards" existence probes) are intentionally different: the site is
+server-rendered WordPress/SportsPress, not client-side-async, so genuine content was
+observed resolving in ~0.01s across every tournament/layout profiled. Before this split
+existed, a tournament whose tabs mostly lack pagination/cards (e.g. `campeonato-
+mineiro-2012`, 5 tabs) burned 300 of 312s in dead timeouts alone. Don't raise
+`optional_element_wait_time` back toward 30s "to be safe" — that reintroduces the exact
+cost this fixes, for content that provably never shows up late on this site.
+
+**When re-verifying the scraper against the live site, expect team display-name
+drift, not layout changes.** A full pass of `tests/scrapper_test.py` (13 tests, live
+Selenium runs) after ~2 years untouched found the site's HTML structure unchanged —
+zero scraper code changes needed — but did surface a team with two names in active use
+(bio-page name vs. a shorter SportsPress schedule-table label, e.g. "América
+Locomotiva" vs. "Locomotiva FA") that wasn't in `src/utils/team_aliases.py` and had
+already leaked into the committed `backend/seed_data/*.csv`. This is the same class of
+bug as the pre-existing aliases in that file, just not one anyone had scraped/noticed
+before. It was caught incidentally via one test assertion, not a systematic check —
+treat any future name-shaped test failure here as a probable missing alias, and check
+both `TEAM_NAME_ALIASES` and the committed seed CSVs (not just one or the other) before
+assuming it's fixed.
+
 ### Pages / scope
 
 Foundation pages (ported from the prototype, not copied 1:1): Home (current champion),

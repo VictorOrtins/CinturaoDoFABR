@@ -37,11 +37,11 @@ Data,Mandante,Hor/Res,Visitante,Campo,Torneio,Fase,Pontos Mandante,Pontos Visita
 2011-11-20 14:30:00,Coritiba Crocodiles,17 - 09,JEC Gladiators,,Liga Brasileira 2011,,17,9,Coritiba Crocodiles,Coritiba Crocodiles
 2011-12-10 14:00:00,Coritiba Crocodiles,07 - 14,Fluminense FA,,Liga Brasileira 2011,,7,14,Fluminense FA,Coritiba Crocodiles
 2012-07-14 14:00:00,Fluminense FA,49 - 00,Cabritos FA,Rio de Janeiro/RJ,Campeonato Brasileiro 2012,,49,0,Fluminense FA,Fluminense FA
-2012-07-28 14:00:00,América Locomotiva,15 - 22,Fluminense FA,Belo Horizonte/MG,Campeonato Brasileiro 2012,,15,22,Fluminense FA,Fluminense FA
+2012-07-28 14:00:00,Locomotiva FA,15 - 22,Fluminense FA,Belo Horizonte/MG,Campeonato Brasileiro 2012,,15,22,Fluminense FA,Fluminense FA
 2012-08-26 14:00:00,Fluminense FA,44 - 19,Spartans Football,Estádio Ronaldo Nazário - Rio de Janeiro/RJ,Campeonato Brasileiro 2012,,44,19,Fluminense FA,Fluminense FA
 2012-09-15 14:00:00,Brasil Devilz,07 - 47,Fluminense FA,Barueri/SP,Campeonato Brasileiro 2012,,7,47,Fluminense FA,Fluminense FA
-2012-09-22 14:00:00,Fluminense FA,09 - 26,América Locomotiva,Rio de Janeiro/RJ,Campeonato Brasileiro 2012,,9,26,América Locomotiva,Fluminense FA
-2012-10-21 14:00:00,São Paulo Storm,49 - 00,América Locomotiva,,Campeonato Brasileiro 2012,,49,0,São Paulo Storm,América Locomotiva
+2012-09-22 14:00:00,Fluminense FA,09 - 26,Locomotiva FA,Rio de Janeiro/RJ,Campeonato Brasileiro 2012,,9,26,Locomotiva FA,Fluminense FA
+2012-10-21 14:00:00,São Paulo Storm,49 - 00,Locomotiva FA,,Campeonato Brasileiro 2012,,49,0,São Paulo Storm,Locomotiva FA
 2012-10-27 14:00:00,Fluminense FA,25 - 20,São Paulo Storm,,Campeonato Brasileiro 2012,,25,20,Fluminense FA,São Paulo Storm
 2012-11-11 14:00:00,Fluminense FA,15 - 17,Coritiba Crocodiles,,Campeonato Brasileiro 2012,,15,17,Coritiba Crocodiles,Fluminense FA
 2012-11-24 14:00:00,Cuiabá Arsenal,31 - 23,Coritiba Crocodiles,,Campeonato Brasileiro 2012,,31,23,Cuiabá Arsenal,Coritiba Crocodiles
@@ -115,10 +115,10 @@ Data,Mandante,Hor/Res,Visitante,Campo,Torneio,Fase,Pontos Mandante,Pontos Visita
 2018-03-17 17:00:00,Sada Cruzeiro/Galo FA,82 - 07,Nova Serrana Forgeds,SESC Venda Nova - Belo Horizonte/MG,Campeonato Mineiro 2018,,82,7,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-04-07 17:00:00,Piratas da Serra,00 - 74,Sada Cruzeiro/Galo FA,SESC Venda Nova - Belo Horizonte/MG,Campeonato Mineiro 2018,,0,74,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-06-16 14:00:13,Sada Cruzeiro/Galo FA,58 - 06,Contagem Inconfidentes,,Campeonato Mineiro 2018,,58,6,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2018-06-23 16:00:13,Sada Cruzeiro/Galo FA,50 - 14,América Locomotiva,,Campeonato Mineiro 2018,,50,14,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
+2018-06-23 16:00:13,Sada Cruzeiro/Galo FA,50 - 14,Locomotiva FA,,Campeonato Mineiro 2018,,50,14,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-07-21 14:00:00,Tritões FA,14 - 34,Sada Cruzeiro/Galo FA,Toca do Índio - Vila Velha/ES,BFA 2018,,14,34,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-08-11 00:00:00,Juiz de Fora Imperadores,00 - 49,Sada Cruzeiro/Galo FA,W.O.,BFA 2018,,0,49,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2018-08-25 17:00:00,Sada Cruzeiro/Galo FA,63 - 02,América Locomotiva,SESC Venda Nova - Belo Horizonte/MG,BFA 2018,,63,2,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
+2018-08-25 17:00:00,Sada Cruzeiro/Galo FA,63 - 02,Locomotiva FA,SESC Venda Nova - Belo Horizonte/MG,BFA 2018,,63,2,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-09-15 17:00:00,Sada Cruzeiro/Galo FA,65 - 00,São Paulo Storm,SESC Venda Nova - Belo Horizonte/MG,BFA 2018,,65,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-09-23 14:00:00,Sada Cruzeiro/Galo FA,13 - 06,Matias Barbosa Primatas,Campo do Botafogo - Matozinhos/MG,Copa Ouro 2017,,13,6,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-09-30 10:00:00,Guarulhos Rhynos,20 - 44,Sada Cruzeiro/Galo FA,Estádio do Canindé - São Paulo/SP,BFA 2018,,20,44,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
@@ -127,8 +127,8 @@ Data,Mandante,Hor/Res,Visitante,Campo,Torneio,Fase,Pontos Mandante,Pontos Visita
 2018-11-03 15:00:00,Sada Cruzeiro/Galo FA,53 - 00,Botafogo Reptiles,,BFA 2018,,53,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-11-17 18:00:00,Sada Cruzeiro/Galo FA,47 - 14,Vila Velha Tritões,,BFA 2018,,47,14,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2018-12-01 18:00:00,Sada Cruzeiro/Galo FA,14 - 10,Timbó Rex,,BFA 2018,,14,10,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2018-12-09 15:00:00,Sada Cruzeiro/Galo FA,14 - 16,América Locomotiva,Faculdade Universo - Belo Horizonte/MG,Copa Ouro 2018,,14,16,América Locomotiva,Sada Cruzeiro/Galo FA
-2019-01-13 13:00:00,Contagem Inconfidentes,22 - 15,América Locomotiva,Arena Frigoarnaldo - Contagem/MG,Copa Ouro 2017,,22,15,Contagem Inconfidentes,América Locomotiva
+2018-12-09 15:00:00,Sada Cruzeiro/Galo FA,14 - 16,Locomotiva FA,Faculdade Universo - Belo Horizonte/MG,Copa Ouro 2018,,14,16,Locomotiva FA,Sada Cruzeiro/Galo FA
+2019-01-13 13:00:00,Contagem Inconfidentes,22 - 15,Locomotiva FA,Arena Frigoarnaldo - Contagem/MG,Copa Ouro 2017,,22,15,Contagem Inconfidentes,Locomotiva FA
 2019-07-28 15:00:00,Contagem Inconfidentes,48 - 28,Nova Serrana Forgeds,Arena Frigoarnaldo - Contagem/MG,BFA Acesso 2019,,48,28,Contagem Inconfidentes,Contagem Inconfidentes
 2019-08-17 14:00:00,Tigres FA,13 - 47,Contagem Inconfidentes,Ipatingão - Ipatinga/MG,BFA Acesso 2019,,13,47,Contagem Inconfidentes,Contagem Inconfidentes
 2019-09-01 15:00:00,Contagem Inconfidentes,41 - 33,Blaze FA,Contagem/MG,BFA Acesso 2019,,41,33,Contagem Inconfidentes,Contagem Inconfidentes
@@ -139,7 +139,7 @@ Data,Mandante,Hor/Res,Visitante,Campo,Torneio,Fase,Pontos Mandante,Pontos Visita
 2022-08-14 10:00:00,Sada Cruzeiro/Galo FA,50 - 00,Corinthians Steamrollers,CTE/UFMG - Belo Horizonte/MG,Brasileirao 2022,,50,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2022-09-03 18:00:00,Sorriso Hornets,00 - 53,Sada Cruzeiro/Galo FA,Toca do Lobo - Sorriso/MT,BFA 2022,,0,53,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2022-09-11 11:00:00,Sada Cruzeiro/Galo FA,42 - 08,Flamengo Imperadores,CTE/UFMG - Belo Horizonte/MG,Brasileirao 2022,,42,8,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2022-09-18 16:00:29,Sada Cruzeiro/Galo FA,60 - 00,América Locomotiva,,BFA 2022,Semifinal SE,60,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
+2022-09-18 16:00:29,Sada Cruzeiro/Galo FA,60 - 00,Locomotiva FA,,BFA 2022,Semifinal SE,60,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2022-09-24 17:00:00,Sada Cruzeiro/Galo FA,50 - 00,Tritões FA,CTE/UFMG - Belo Horizonte/MG,Brasileirao 2022,,50,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2022-10-15 18:00:54,Sada Cruzeiro/Galo FA,35 - 06,Vasco Almirantes,,BFA 2022,Final SE,35,6,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2022-11-02 18:00:20,Sada Cruzeiro/Galo FA,18 - 11,João Pessoa Espectros,,BFA 2022,,18,11,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
@@ -156,10 +156,10 @@ Data,Mandante,Hor/Res,Visitante,Campo,Torneio,Fase,Pontos Mandante,Pontos Visita
 2023-12-16 15:00:34,Almirantes FA,14 - 21,Sada Cruzeiro/Galo FA,,BFA 2023,,14,21,Sada Cruzeiro/Galo FA,Almirantes FA
 2024-06-02 10:00:00,Sada Cruzeiro/Galo FA,28 - 07,Uberlândia Lobos,,Campeonato Mineiro 2024,,28,7,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-06-22 14:00:00,Sada Cruzeiro/Galo FA,41 - 03,Nova Serrana Forgeds,,Campeonato Mineiro 2024,,41,3,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2024-07-06 14:00:00,América Locomotiva,12 - 19,Sada Cruzeiro/Galo FA,,Campeonato Mineiro 2024,,12,19,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
+2024-07-06 14:00:00,Locomotiva FA,12 - 19,Sada Cruzeiro/Galo FA,,Campeonato Mineiro 2024,,12,19,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-08-03 16:00:00,Sada Cruzeiro/Galo FA,20 - 13,Vasco Almirantes,CTE/UFMG - Belo Horizonte/MG,BFA 2024,,20,13,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-08-24 14:00:00,Manaus FA,00 - 23,Sada Cruzeiro/Galo FA,Estádio Ismael Benigno - Manaus/AM,BFA 2024,,0,23,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
-2024-09-01 14:00:00,América Locomotiva,00 - 33,Sada Cruzeiro/Galo FA,Faculdade Universo - Belo Horizonte/MG,BFA 2024,,0,33,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
+2024-09-01 14:00:00,Locomotiva FA,00 - 33,Sada Cruzeiro/Galo FA,Faculdade Universo - Belo Horizonte/MG,BFA 2024,,0,33,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-09-21 19:00:00,Sada Cruzeiro/Galo FA,36 - 02,Tubarões do Cerrado,CTE/UFMG - Belo Horizonte/MG,BFA 2024,,36,2,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-10-20 15:00:32,Sada Cruzeiro/Galo FA,07 - 00,Vasco Almirantes,,BFA 2024,-,7,0,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA
 2024-11-09 14:00:30,Rondonópolis Hawks,03 - 16,Sada Cruzeiro/Galo FA,,BFA 2024,,3,16,Sada Cruzeiro/Galo FA,Sada Cruzeiro/Galo FA

@@ -1,0 +1,395 @@
+# Data pipeline: scrape → DB → deploy (handoff doc)
+
+**Status**: Phase 0 done (2026-08-23, branch `create-data-pipeline`) — see "Phase 0"
+below for what shipped and what was found verifying it. Phases 1-5 still not started —
+no pipeline task functions, no Airflow, no Fly.io app, no CI/CD. This is everything a
+future session needs to pick this up cold.
+
+## Why this exists
+
+The frontend (React/FastAPI/SQLite) is done and polished, but the user considers it
+"pretty mid" as a portfolio piece on its own. What they actually want this project to
+demonstrate is **data engineering**: a real, recurring pipeline that scrapes new FABR
+match results, updates a database, and updates the live site — automated, and
+visible as a pipeline (DAGs, PRs, deploys), not just a pretty page. This doc is the
+result of a planning session (2026-08-22) scoping that out. Read
+[`../CLAUDE.MD`](../CLAUDE.MD) first for the project's general architecture/gotchas —
+this doc only covers the new pipeline/orchestration/deployment work, not the existing
+backend/frontend.
+
+## Current state (confirmed by reading the code, not assumed)
+
+**Scraping** (`src/scrapping/`) — a real, previously-iterated-on Selenium scraper
+against `www.salaooval.com.br` (a WordPress site, no API — this is the only data
+source for the whole project). `src/scrapping/scrape_games/get_urls.py`'s
+`TournamentUrlsScrapper` crawls the tournaments listing page and returns **every**
+historical tournament URL (~50+); `scrapper.py`'s `GamesScrapper` scrapes two
+different page layouts the site uses across years. It's a one-shot **full historical
+re-crawl** today, not incremental, and there's no "only get new stuff" mode.
+
+**Preprocessing** (`src/preprocessing/`) — cleans raw scraped CSVs: fixes hardcoded
+team-name aliases, splits score strings, dedupes, computes the winner column.
+
+**Belt algorithm** (`src/cinturao_algorithm/cinturao.py`) — walks the full
+preprocessed, chronologically-sorted dataset from game 0 and recomputes the entire
+belt-succession history every time it runs. This is cheap (pandas over ~165 rows) and
+**needs no incremental logic of its own** — feed it the full merged dataset each run
+and it's correct.
+
+**Database** (`backend/app/seed.py::seed_if_empty`) — only ever fires once, against a
+completely empty SQLite DB, from static CSVs committed at `backend/seed_data/`.
+**There is currently no mechanism to update an already-seeded DB.** Team-name
+resolution failures are silently dropped (`continue`), currently losing 20 of 165
+games — documented as a known gap in `CLAUDE.MD`'s Database section.
+
+**No CI/CD, no scheduler, no deployment** exist anywhere in the repo — the site only
+runs locally via `docker-compose`/`scripts/start-linux.sh`. All of this is new work.
+
+### Two real bugs found during research (fixed in Phase 0 / still open)
+
+1. **Alias dicts disagree with each other.** ~~`src/preprocessing/games/preprocessor.py`
+   renames `'Juventude FA'` → `'União da Serræ/Juventude FA'` (stray `æ` typo), while
+   `src/preprocessing/teams/preprocessor.py`'s fix produces `'União da Serra/Juventude
+   FA'`.~~ **Fixed in Phase 0**: consolidated into `src/utils/team_aliases.py`'s
+   `TEAM_NAME_ALIASES`, typo corrected, both preprocessors now import and apply the
+   same dict (verified: both `'Juventude FA'` and `'União da Serra'` now resolve to the
+   identical `'União da Serra/Juventude FA'`).
+2. **No raw/master dataset is committed anywhere.** `backend/seed_data/*.csv` is
+   already-processed output (post-preprocessing, post-belt-algorithm), not raw scrape
+   data. An incremental pipeline needs a durable, versioned place to merge new scrape
+   rows into — this doesn't exist yet and has to be created (see Phase 1 below). Still
+   open — Phase 1 work.
+
+## Decisions confirmed this session (do not re-litigate without new user input)
+
+1. **Deploy target**: Fly.io, for both `backend` and `frontend` — chosen for its
+   persistent-volume support (needed for the SQLite file) and free allowance. Not
+   deployed anywhere today.
+2. **Scrape scope per run**: incremental — only current/recent-season tournaments,
+   merged into a growing master dataset. Not a full re-crawl every time.
+3. **Update flow**: a scheduled run opens a **PR** with the regenerated data for
+   human review. It never auto-commits to `main` or writes to production directly.
+4. **Orchestration/scheduling — the Airflow question**: the user wants real Airflow
+   experience (DAG authoring, task dependencies, retries — genuinely more
+   résumé-relevant than "a cron trigger in a YAML file") but **cannot pay for
+   always-on infrastructure**, and running infra isn't the point of this project. The
+   resolved approach (see below): **Airflow DAGs, executed ephemerally inside a free
+   GitHub Actions runner** — real Airflow code, zero hosting cost. No persistent
+   Airflow scheduler/webserver/metadata Postgres anywhere.
+5. Consequence of #3: the live DB only updates when the backend **redeploys** (which
+   only happens after the user merges the data PR to `main`), and it re-syncs itself
+   from the committed CSVs on startup. CI never holds production DB credentials.
+
+## The Airflow decision, explained
+
+**Why plain Airflow-as-a-service doesn't fit**: Airflow's value is orchestrating many
+interdependent tasks with retries/backfills/sensors across a complex DAG. This
+pipeline is one linear chain (scrape → merge/dedupe → preprocess → belt algorithm →
+sync DB) run once a week. Running Airflow "for real" means keeping a scheduler +
+webserver + metadata Postgres alive 24/7 just to fire one job a week — that's real
+infrastructure to host and pay for (self-hosted on Fly.io: a persistent machine
+burning through the free allowance around the clock, plus a Postgres volume; managed
+options like Astronomer/MWAA cost real money past a free trial).
+
+**The free-tier-compatible middle ground**: Airflow ships a command specifically for
+this situation — `airflow dags test <dag_id> <logical_date>` runs a DAG's tasks
+locally, in dependency order, **without needing the scheduler daemon, webserver, or a
+persistent metadata DB running**. It's Airflow's own recommended way to run a DAG
+once, e.g. from CI. So the plan is:
+
+- Write a real Airflow DAG (`dags/update_games_dag.py`) with `PythonOperator` tasks
+  wrapping each pipeline step, real `>>` dependencies, and retry policies on the
+  network-flaky scrape task — actual Airflow code, not a shell script.
+- A GitHub Actions cron workflow installs `apache-airflow` fresh in the (free) runner,
+  points `AIRFLOW_HOME` at a throwaway directory (SQLite metadata DB is fine — single
+  run, no concurrency), runs `airflow dags test update_games <date>` once, then the
+  runner is torn down. Zero persistent cost, ever.
+- Trade-off, stated plainly: no persistent Airflow **web UI** to browse historical run
+  history in a browser (you'd read GH Actions logs instead, or run `airflow standalone`
+  locally on your own machine on demand if you want the UI experience for a demo/
+  screenshot). No Airflow-driven scheduling either — recurrence still comes from GH
+  Actions' `cron:` trigger; Airflow is the *execution engine* for one run, not the
+  long-running scheduler. If that gap ever matters (e.g. you want a live dashboard to
+  show off, or need real backfill/sensor features), self-hosting Airflow on Fly.io
+  becomes a real upgrade path — see "Future upgrade path" below — but isn't needed to
+  get genuine DAG-authoring experience now.
+
+**A real risk to verify early, not assumed away**: Airflow's dependency tree is heavy
+and version-sensitive (it publishes constraints files per Python version, e.g.
+`pip install "apache-airflow==2.9.3" --constraint ".../constraints-3.12.txt"`). It may
+pull in its own pinned `pandas`/other versions that conflict with what
+`requirements.txt` already pins for `src/preprocessing`. **First thing to check when
+implementation starts**: does `pip install apache-airflow==<pinned> --constraint ...`
+alongside the existing `requirements.txt` deps resolve cleanly in a scratch venv? If
+not, isolate Airflow's install (e.g. a separate venv/step in the CI job that only
+Airflow's process uses, importing `src.pipeline.tasks` as an installed package) rather
+than fighting the constraint solver.
+
+## Build order
+
+Ship in phases; each is independently useful and testable before moving to the next.
+
+### Phase 0 — Groundwork (dependencies, packaging, alias fix) — **DONE (2026-08-23)**
+- `requirements.txt`: added `selenium==4.27.1`, `webdriver-manager==4.0.2`,
+  `requests==2.32.3`, and `lxml==5.3.0` (the last one wasn't in the original plan —
+  `pd.read_html`, used by `GamesScrapper.__get_table_df`, silently needs `lxml` as an
+  optional pandas dependency; without it every tournament using the homeaway-table
+  layout raises `ImportError` at scrape time. Found by actually running the test suite,
+  not by reading the code.).
+- Added `__init__.py` under every `src/` subpackage; switched every relative/
+  `sys.path`-hack import to absolute `src.x.y` form (`scrape_games.py`, both
+  `scrapper.py` files, both `preprocess_games.py`/`preprocess_teams.py`,
+  `tests/scrapper_test.py`). Convention going forward: invoke everything as
+  `python -m src.<path>` from the repo root, or just `pytest`/`python -c` from repo
+  root — both resolve `src.*` imports with no `sys.path` hacks needed.
+- New `src/utils/team_aliases.py`: one `TEAM_NAME_ALIASES: dict[str, str]`
+  consolidating (and fixing the `Serræ`→`Serra` typo in) the two previously-divergent
+  alias dicts. Both `src/preprocessing/games/preprocessor.py` and
+  `src/preprocessing/teams/preprocessor.py` now do
+  `<column>.replace(TEAM_NAME_ALIASES)` (pandas' exact-value dict replace) instead of
+  their own hardcoded per-name branches/`str.replace` substring calls.
+- **Verify — ran `tests/scrapper_test.py` instead of a full historical re-crawl**
+  (the doc's original plan): a full 50+-tournament crawl is slow and largely redundant
+  with the existing per-tournament-layout test suite, which the user separately asked
+  to have re-run after ~2 years untouched, as a real-world check that
+  `salaooval.com.br` hadn't changed layout. Result: **12/13 passed on first real run**
+  (after fixing the `lxml` gap above) — the scraper itself needed no code changes.
+  The one failure (`test_mineiro_2012`) turned out to be a third real name-alias gap,
+  not a scraper bug or a site layout change: `salaooval.com.br` has always shown two
+  different labels for this team — the team's own bio-page `<h1>`/`<title>` says
+  "América Locomotiva" (matches `backend/seed_data/teams.csv`'s existing row), while
+  every game-listing table (SportsPress plugin's short competitor label, confirmed via
+  raw HTML on the *same* 2012 tournament page) has always said "Locomotiva FA" — the
+  exact same "short schedule-table label vs. full bio-page name" pattern as the
+  pre-existing `Galo FA`/`Fluminense Imperadores`/`Joinville Gladiators` aliases, just
+  not one anyone had scraped/noticed before now. Per user direction, canonicalized to
+  **"Locomotiva FA"** (not the bio-page name): added `"América Locomotiva": "Locomotiva
+  FA"` to `TEAM_NAME_ALIASES`, and — critically — renamed the already-committed
+  `backend/seed_data/games.csv` (14 occurrences across `Mandante`/`Visitante`/
+  `Vencedor`/`Defensor do Título`) and `teams.csv` (1 row) from "América Locomotiva" to
+  "Locomotiva FA" too, since those files are seeded as-is (not reprocessed at seed
+  time) and would otherwise have silently drifted from any future scrape output.
+  Verified: `backend` test suite (90 tests) + `ruff` + `mypy` all still green after the
+  rename; the test's hardcoded assertion was updated to match the scraper's raw output.
+  Full `tests/scrapper_test.py` suite is green (13/13) as of this session. Conclusion:
+  the scraper's *scraping logic* needs no changes for Phase 1, but this is a live
+  example of exactly the failure mode the user was worried about (a name variant
+  silently fragmenting a team's history) slipping past both the alias dicts *and* the
+  already-committed seed data at the same time — worth a systematic pass (not done
+  here) cross-checking every team's schedule-table label against `teams.csv`'s name
+  before Phase 1 ships, rather than relying on catching each one via an incidental test
+  failure.
+- **Perf fix found via the same test run, not in the original plan**:
+  `GamesScrapper.__scrape_tournament` visits every tab on a tournament page (e.g.
+  "Informações"/"Campeões"/"Notícias", not just the actual games tab) and, per tab,
+  waits up to `wait_time` (30s) each for a `.paginate_button` and for
+  `time.sp-event-date` (cards) — elements that, per this profiling, either render
+  near-instantly (server-side WordPress/SportsPress, no async loading observed across
+  3 different tournaments/layouts) or genuinely don't exist for that tab's layout.
+  Profiling `campeonato-mineiro-2012` (5 tabs, table-only, no pagination) showed 300 of
+  its 312s total was pure timeout waiting on elements confirmed absent. Fixed by adding
+  `GamesScrapper.optional_element_wait_time` (default 3s, vs. `wait_time`'s 30s) used
+  only for those two "may not exist on this tab" probes — every other wait (initial tab
+  list, per-row extraction once a card/table is confirmed present) is untouched, so no
+  scrape correctness/coverage was traded for speed. Full 13-test suite: **44:33 → 12:11
+  (3.65x), 13/13 still passing, identical row counts** — confirms nothing was lost.
+  Not addressed (flagged, not fixed): the tab loop still fully reloads and re-scrapes
+  the *same* page content once per irrelevant tab (confirmed for at least the
+  table-only layout — all rows are present on a single page load, no anchor needed);
+  deduping happens after the fact via `drop_duplicates`. Deeper fix would mean touching
+  the tab-iteration logic itself, which risks silently dropping real per-tab
+  differences on layouts not manually verified here (e.g. tournaments where different
+  tabs genuinely hold different phases/games) — left alone this session.
+
+### Phase 1 — Local incremental pipeline logic (orchestrator-agnostic)
+Write this as plain, importable functions first — Airflow (Phase 1.5) just wraps them
+in `PythonOperator`s later. Don't build DAG structure and pipeline logic in the same
+step.
+
+- `src/scrapping/scrape_games/get_urls.py`: add a pure, unit-testable
+  `filter_urls_by_year(urls, since_year)`. Tournament URL slugs reliably end in a
+  4-digit year (confirmed from existing code) — regex filter, no new scraping
+  capability needed. Keep URLs with no recognizable trailing year rather than
+  dropping them (never silently lose an edge case). Leave
+  `TournamentUrlsScrapper.get_urls()` itself untouched.
+- New `src/pipeline/tasks.py` — one function per pipeline step, each independently
+  callable/testable:
+  - `scrape_recent_games(since_year: int) -> Path` — builds the URL scraper, applies
+    `filter_urls_by_year(since_year=current_year - 1)` (covers a season still being
+    finalized), runs the existing `GamesScrapper` unchanged, writes to a **new,
+    timestamped file** under `data/raw/games/` (never overwrites).
+  - `merge_and_preprocess() -> Path` — `Preprocessor().read_data_in_folder('data/raw/games')`
+    (reuses its existing "concat every file with 'games' in the name" behavior
+    unmodified — concats the one-time bootstrap file plus every past incremental
+    delta) → `preprocess_games_df()`. The existing dedupe key
+    (`Data,Mandante,Hor/Res,Visitante,Torneio`) means an unchanged re-scraped game is
+    a no-op; only genuinely new rows survive.
+  - `run_cinturao(preprocessed_path: Path) -> Path` — `Cinturao(...).run_cinturao_algorithm()`,
+    full recompute over the merged set, writes the result.
+  - `regenerate_seed_csv(cinturao_output: Path) -> None` — overwrite
+    `backend/seed_data/games.csv` with the result.
+  - `check_unresolved_teams() -> Path` — diff team names appearing in the new
+    games.csv against `backend/seed_data/teams.csv`; write any unresolved names to
+    `data/raw/unresolved_teams.txt`. **Does not raise/fail** — surfaced for human
+    review in the PR body instead (decision #3).
+- New `src/pipeline/update_games.py` — thin CLI (`argparse`: `--since-year`,
+  `--dry-run`) that calls the Phase 1 task functions in order, for local/manual runs
+  without Airflow. Both the CLI and the future Airflow DAG import from
+  `src/pipeline/tasks.py` — one implementation, two callers.
+- New committed raw-data location: `data/raw/games/` — one one-time **bootstrap
+  file** (produced by running the existing full historical scraper once locally and
+  committing the output), plus one new file per scheduled run.
+- `.gitignore`: currently blanket-ignores `*.csv` except a small allowlist whose
+  `app/*` entries are now dead (`app/` was deleted). Replace them with
+  `!data/raw/games/*.csv` (add `!data/raw/teams/*.csv` too if team scraping gets
+  wired in later) so the pipeline's output can actually be committed.
+- **Trust-building milestone before moving on**: run `update_games.py` against the
+  bootstrap file alone (no new scrape) and confirm it reproduces the
+  currently-committed `backend/seed_data/games.csv` (modulo the alias-typo fix).
+- **Known limitation to flag, not fix now**: the dedupe key includes the score, so a
+  *corrected* score on an already-scraped game would be treated as a new row rather
+  than an update. Leave a comment near the dedupe call; changing `Preprocessor`'s key
+  is out of scope here.
+
+### Phase 1.5 — Airflow DAG
+- New `dags/update_games_dag.py` — a real Airflow DAG: `PythonOperator` per task from
+  `src/pipeline/tasks.py`, explicit `>>` dependency chain, `retries=2` with backoff on
+  the scrape task (network flakiness against a live third-party site), a final task
+  that surfaces `check_unresolved_teams()`'s output for the PR-body step.
+- Pin an exact `apache-airflow` version + matching constraints file. Verify the
+  dependency-conflict risk described above in a scratch venv before wiring into CI.
+- Local dev loop: `airflow dags test update_games <date>` runs it without any
+  scheduler/webserver — this is also how you'll manually test it before trusting the
+  CI job.
+
+### Phase 2 — Backend DB sync (replace seed-once with real sync)
+Independent of the orchestrator choice — do this regardless of how Phase 1/1.5 shake out.
+- `backend/app/models.py`: add a composite unique index on
+  `Game(date, home_team_id, away_team_id, tournament)` — deliberately excluding
+  score (see Phase 1's known limitation note). `Game` currently only has a surrogate
+  PK; this is the natural key sync needs.
+- Since this becomes a schema change against a DB that (once deployed) holds real
+  data on a Fly.io volume, add **Alembic** (`backend/alembic/`) now rather than
+  relying on `create_all` — legitimate scope for a project explicitly repositioning
+  around backend seriousness.
+- `backend/app/seed.py`: replace `seed_if_empty` with `sync_from_csv(db, seed_data_dir)`
+  — upserts teams (match by unique `name`), upserts games (match by the new composite
+  key, update mutable fields like score/venue/phase if changed). **Behavior change**:
+  an unresolved team name no longer silently drops the game (current `_seed_games`'s
+  `continue` — fine for a one-time seed, unacceptable for a recurring unattended
+  sync) — instead auto-create a minimal placeholder `Team` row and log a warning, so
+  no game is ever silently lost. The real fix (a metadata-complete team) is what
+  Phase 1's `unresolved_teams.txt` report is for.
+- `backend/app/main.py`'s `lifespan`: call `sync_from_csv(db)` unconditionally on
+  every startup, not just when empty.
+- `backend/tests/conftest.py`'s `seeded_db_session` fixture: same swap.
+- `backend/tests/test_seed.py`: extend/rename — insert-on-empty still works,
+  re-running on an unchanged CSV is a true no-op, one appended game inserts only that
+  row, one changed score updates in place (no duplicate), an unresolved team name
+  creates a placeholder instead of skipping (replaces the old skip-count lock-in
+  test, which existed to guard the behavior being removed here).
+
+### Phase 3 — GitHub Actions: scheduled scrape + PR
+- New `.github/workflows/scrape-and-pr.yml`: `schedule: cron` (weekly, e.g. Monday
+  06:00 UTC) + `workflow_dispatch` for manual runs. Steps: checkout →
+  `actions/setup-python` → `browser-actions/setup-chrome` (pin an explicit Chrome
+  version rather than trusting whatever's preinstalled on `ubuntu-latest`;
+  `webdriver-manager` in the scraper code needs no change, it resolves against
+  whatever Chrome is present) → install `requirements.txt` + pinned `apache-airflow`
+  (watch the dependency-conflict risk noted above) → `airflow dags test update_games
+  <date>` → `git diff --quiet` to detect changes → if changed, open a PR via
+  `peter-evans/create-pull-request`, with the diff summary + `unresolved_teams.txt`
+  contents in the PR body as a review checklist.
+- Needs `permissions: contents: write, pull-requests: write`; default `GITHUB_TOKEN`
+  is sufficient — **no production secrets in this workflow**, which is what keeps
+  "CI never touches prod" true.
+- The existing `tests/scrapper_test.py` (hits the live site with hardcoded historical
+  assertions) stays a manual/local check, not wired into any CI trigger — slow and
+  fragile against a third party, orthogonal to this workflow.
+- Validate via a few manual `workflow_dispatch` runs before trusting the cron; review
+  the generated PRs by hand.
+
+### Phase 4 — Fly.io deployment
+- New `backend/fly.toml`: Dockerfile build, `primary_region = "gru"` (São Paulo), a
+  `[[mounts]]` persistent volume at `/app/data` (matches `backend/app/config.py`'s
+  `database_path`/`seed_data_dir` under `BACKEND_DIR/data`), `internal_port = 8000`.
+  One-time: `fly volumes create backend_data --region gru --size 1`,
+  `fly secrets set OPENROUTER_API_KEY=...` (mirrors the existing root `.env` key
+  already read by `config.py`).
+- New `frontend/fly.toml`: separate Fly app, `internal_port = 80` (existing nginx
+  multi-stage Dockerfile is already Fly-compatible as-is). **Important**:
+  `frontend/Dockerfile` bakes `VITE_API_BASE_URL` in at build time via `ARG`/`ENV`
+  (confirmed in the file) — must be set to the real backend Fly URL via
+  `[build.args]` in `frontend/fly.toml` or `--build-arg` on deploy; the compose
+  file's default (`http://localhost:8000`) must not leak into the deployed image.
+- New `.github/workflows/deploy.yml`: triggers on `push: branches: [main]` (repo's
+  actual production branch). Runs `flyctl deploy` for both apps using a
+  `FLY_API_TOKEN` secret (`fly tokens create deploy`, `gh secret set FLY_API_TOKEN`)
+  — the **only** place this token exists in CI, kept separate from
+  `scrape-and-pr.yml`.
+- This closes the loop: scrape/merge (ephemeral Airflow run in CI) → PR (review
+  checkpoint) → merge to `main` → `deploy.yml` rebuilds/redeploys the backend → the
+  new image's `lifespan` runs `sync_from_csv` against the mounted volume on boot →
+  live DB updated, with production credentials never touched by the scraping job.
+- Verify: one manual `flyctl deploy` for each app first (confirm boot + `/health`),
+  then confirm the volume survives a redeploy (row counts persist) before wiring the
+  automated workflow.
+
+### Phase 5 — End-to-end validation
+Trigger a real `workflow_dispatch` scrape run → review/merge the resulting PR →
+confirm `deploy.yml` fires → confirm the live backend's `/api/games`/`/health`
+reflect the new data with no manual reseed step.
+
+## Future upgrade path (not now — only if it ever becomes worth the cost)
+
+If a persistent Airflow web UI (browsable run history, live DAG graph) or real
+scheduler-driven recurrence (vs. GH Actions cron) ever becomes worth paying for:
+self-host Airflow on Fly.io as its own machine + a Postgres metadata DB (Fly Postgres
+or a managed free-tier Postgres like Neon/Supabase), pointed at the same
+`dags/update_games_dag.py` already written in Phase 1.5 — no DAG rewrite needed, just
+a hosting change. Realistic cost: a small always-on machine plus a persistent
+Postgres volume, likely a few dollars/month minimum once honestly accounted for. Not
+justified by this pipeline's actual complexity today; noted here so the option is
+understood, not chosen by default.
+
+## Testing/verification strategy
+- `filter_urls_by_year`: pure-function unit test (no Selenium/network) — trailing-year
+  present/absent/boundary cases.
+- `src/pipeline/tasks.py`'s merge/dedupe (`merge_and_preprocess`): integration test
+  with tmp-dir fixture CSVs (a small "historical" fixture + a "delta" fixture with one
+  duplicate + one genuinely new row) — assert exactly one new game, alias applied
+  correctly, a planted unresolvable name lands in the report file.
+- Airflow DAG: `airflow dags test update_games <date>` locally as the primary
+  verification loop; optionally a lightweight `pytest` "DAG import doesn't error /
+  has no cycles" smoke test (the common `DagBag` pattern) if this grows past one DAG.
+- Backend sync: pytest against existing `db_session`/`seeded_db_session` fixtures —
+  table-driven insert/no-op/update/placeholder-team cases (Phase 2).
+- Standard project checks after each phase: backend
+  `uv run pytest && uv run ruff check . && uv run mypy app`; run root-level
+  scraper/pipeline scripts manually to confirm they still execute.
+- GH Actions: prefer real `workflow_dispatch` runs on the hosted runner over `act`
+  (won't reliably emulate `setup-chrome` + real outbound requests to `salaooval.com.br`).
+
+## Open questions for the next session
+- Exact `apache-airflow` version to pin, and whether its dependency constraints
+  conflict with `requirements.txt`'s existing pins (`pandas`, `numpy`, `scikit-learn`)
+  — check this **first**, before writing any DAG code, since it could force isolating
+  Airflow into its own install step.
+- Confirm cron cadence (weekly vs. some other interval) and exact day/time.
+- Whether team scraping (`src/scrapping/scrape_teams/`) gets wired into the same
+  incremental pipeline now, or stays out of scope for this first pass (games-only).
+- Confirm `main` is really the intended production/deploy-triggering branch (current
+  working branch is `update-design`; `main` is the repo's documented default).
+
+## Critical files (once implementation starts)
+- `src/pipeline/tasks.py`, `src/pipeline/update_games.py` (new) — task functions +
+  CLI entrypoint
+- `dags/update_games_dag.py` (new) — Airflow DAG wrapping the same task functions
+- `src/scrapping/scrape_games/get_urls.py` — add `filter_urls_by_year`
+- `src/utils/team_aliases.py` (new) — consolidated, typo-fixed alias source of truth
+- `backend/app/seed.py` — replace `seed_if_empty` with `sync_from_csv`
+- `backend/app/models.py` — composite unique index on `Game`
+- `backend/app/main.py`, `backend/tests/conftest.py` — swap seed call
+- `.github/workflows/scrape-and-pr.yml`, `.github/workflows/deploy.yml` (new)
+- `backend/fly.toml`, `frontend/fly.toml` (new)
+- `.gitignore` — allowlist `data/raw/games/*.csv`

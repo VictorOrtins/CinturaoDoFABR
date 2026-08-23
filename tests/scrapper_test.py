@@ -1,8 +1,3 @@
-import os
-import sys
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 from src.scrapping.scrape_games.scrapper import GamesScrapper
 
 class TestGamesScrapper:
@@ -208,7 +203,7 @@ class TestGamesScrapper:
 
         assert len(mineiro_2012) == 12
 
-        locomotiva_gladiadores = mineiro_2012[(mineiro_2012['Mandante'] == 'América Locomotiva') & (mineiro_2012['Visitante'] == 'Pouso Alegre Gladiadores')]
+        locomotiva_gladiadores = mineiro_2012[(mineiro_2012['Mandante'] == 'Locomotiva FA') & (mineiro_2012['Visitante'] == 'Pouso Alegre Gladiadores')]
         assert len(locomotiva_gladiadores) == 1
 
         assert locomotiva_gladiadores['Hor/Res'].iloc[0] == '54 - 00'
