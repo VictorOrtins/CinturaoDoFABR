@@ -302,6 +302,25 @@ class TestGamesScrapper:
         assert croco_brown_spiders['Hor/Res'].iloc[0] == '33 - 10'
         assert croco_brown_spiders['Torneio'].iloc[0] == 'Amistoso'
 
+    # Torneios de 2025 pra frente (esse aqui é um exemplo) não tem mais a estrutura de
+    # abas (ul.vc_tta-tabs-list) que __find_tournament_tabs procura - o site aparentemente
+    # trocou de editor e essas páginas mostram as tabelas de jogos direto na página, sem
+    # aba nenhuma. Antes disso o scraper via 0 abas e pulava o campeonato inteiro,
+    # mesmo tendo jogo lá (achei isso rodando o scrape completo pro pipeline, 2026-08-23).
+    # Criei esse teste pra não perder essa informação de novo.
+    def test_pernambucano_2025_sem_tabs(self):
+        scrapper = GamesScrapper(['https://www.salaooval.com.br/campeonatos/campeonato-pernambucano-2025/'], save_path=None)
+
+        pernambucano_2025 = scrapper.scrape_tournaments(init=0, end=1)
+
+        assert len(pernambucano_2025) == 4
+
+        wolves_imortais = pernambucano_2025[(pernambucano_2025['Mandante'] == 'Caruaru Wolves') & (pernambucano_2025['Visitante'] == 'Santa Cruz Imortais')]
+        assert len(wolves_imortais) == 1
+
+        assert wolves_imortais['Hor/Res'].iloc[0] == '06 - 09'
+        assert wolves_imortais['Data'].iloc[0] == '2025-04-13 09:00:00'
+
 
 
 

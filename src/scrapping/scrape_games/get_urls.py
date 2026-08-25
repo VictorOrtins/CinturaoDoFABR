@@ -1,14 +1,16 @@
+import re
 from enum import Enum
 from typing import List
+from urllib.parse import urlparse
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.remote.webelement import WebElement
+import requests
 
+# Tournament pages are children of the site's "Campeonatos" page (id 14) in the CMS,
+# regardless of category/year - confirmed against the live REST API (2026-08-23).
+CAMPEONATOS_PARENT_PAGE_ID = 14
+# 'campeonatos' itself shows up as its own child page (a self-referential content
+# block, not a real tournament) - excluded rather than fed to the category filters.
+NON_TOURNAMENT_SLUGS = {"campeonatos"}
 
 
 def isFemaleTournament(url: str):
@@ -21,47 +23,84 @@ def isMaleTournament(url: str):
     return not (isFlagTournament(url) or isFemaleTournament(url))
 
 
+_TRAILING_YEAR_RE = re.compile(r'(\d{4})/?$')
+
+
+def filter_urls_by_year(urls: List[str], since_year: int) -> List[str]:
+    """Keeps only tournament URLs whose slug ends in a year >= since_year.
+
+    URLs with no recognizable trailing year are kept rather than dropped, since
+    silently losing an edge case is worse than scraping a URL we didn't strictly need.
+    """
+    filtered_urls = []
+
+    for url in urls:
+        match = _TRAILING_YEAR_RE.search(url)
+
+        if match is None or int(match.group(1)) >= since_year:
+            filtered_urls.append(url)
+
+    return filtered_urls
+
+
 class TournamentUrlsScrapper:
     class CompetitionCategory(Enum):
         FEMALE = "feminino"
         MALE = "masculino"
         FLAG = "flag"
 
-
     def __init__(self, base_url: str, category: str):
-        self.base_url = base_url
-
-        self.driver = None
-        self.__init_driver()
+        parsed_base_url = urlparse(base_url)
+        self.api_url = f"{parsed_base_url.scheme}://{parsed_base_url.netloc}/wp-json/wp/v2/pages"
 
         self.category = None
         self.category_function = None
 
         self.__parse_category(category)
 
-
-
     def get_urls(self) -> List[str]:
-        self.driver.get(self.base_url)
+        pages = self.__fetch_tournament_pages()
 
-        links = self.__locate_possible_links()
-
-        urls = self.__filter_urls(links)
-
-        urls = self.__fix_urls(urls)
-
-        urls = self.__append_missing_urls(urls)
+        urls = [page['link'] for page in pages if page['slug'] not in NON_TOURNAMENT_SLUGS]
+        urls = [url for url in urls if self.category_function(url)]
 
         return urls
 
-    def __init_driver(self):
-        options = webdriver.ChromeOptions()
-        options.add_experimental_option("excludeSwitches", ["enable-logging"])
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), options=options
-        )
+    def __fetch_tournament_pages(self) -> List[dict]:
+        # Replaces scraping the /campeonatos/ listing page's body content
+        # (div.wpb_wrapper p a), which had silently stopped being updated after 2024 -
+        # new tournaments since 2025, including the brand-new Superliga championship,
+        # were missing from it entirely (confirmed 2026-08-23). Querying the CMS
+        # parent/child relationship directly via the REST API has no such staleness: a
+        # new tournament page shows up the moment it's published, with no year-guessing
+        # or hardcoded link list needed. It also already returns clean, deduped,
+        # correctly-spelled URLs - the DOM-scraping era's __append_missing_urls patches
+        # (a typo'd matogrossense slug, a duplicated 2018 link, a missing 2019 one) were
+        # verified unnecessary here and dropped rather than carried over.
+        pages = []
+        page_num = 1
 
-        self.driver = driver
+        while True:
+            response = requests.get(
+                self.api_url,
+                params={
+                    "parent": CAMPEONATOS_PARENT_PAGE_ID,
+                    "per_page": 100,
+                    "page": page_num,
+                    "_fields": "slug,link",
+                },
+                headers={"User-Agent": "Mozilla/5.0"},
+                timeout=30,
+            )
+            response.raise_for_status()
+            pages.extend(response.json())
+
+            total_pages = int(response.headers.get("X-WP-TotalPages", "1"))
+            if page_num >= total_pages:
+                break
+            page_num += 1
+
+        return pages
 
     def __parse_category(self, category: str):
         if category == "feminino":
@@ -76,52 +115,8 @@ class TournamentUrlsScrapper:
         else:
             raise ValueError(f"Nome da categoria {category} inválido")
 
-    def __locate_possible_links(self) -> List[WebElement]:
-        css_tournament_selector = "div.wpb_wrapper p a"
-
-        WebDriverWait(self.driver, 30).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, css_tournament_selector))
-        )
-
-        links = self.driver.find_elements(By.CSS_SELECTOR, css_tournament_selector)
-
-        return links
-    
-    def __filter_urls(self, links) -> List[str]:
-        urls = [link.get_attribute('href') for link in links]
-        urls = [url for url in urls if self.category_function(url)]
-
-        return urls
-    
-
-    def __append_missing_urls(self, urls: List[str]) -> List[str]:
-        urls.append('https://www.salaooval.com.br/campeonatos/taca-nove-de-julho-2023/')
-
-        try:
-            urls.remove('http://www.salaooval.com.br/campeonatos/campeonato-matogrossense-2015/')
-            urls.append('https://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2015/')
-        except Exception:
-            pass
-
-        try:
-            first_matogrossense_2018 = urls.index('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2018/')
-            try:
-                second_matogrossense_2018 = urls[first_matogrossense_2018 + 1:].index('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2018/') + first_matogrossense_2018 + 1                
-                del urls[second_matogrossense_2018]
-                urls.append('http://www.salaooval.com.br/campeonatos/campeonato-mato-grossense-2019/')
-            except ValueError:
-                pass
-        except ValueError:
-            pass
-
-        return urls
-    
-    def __fix_urls(self, urls: List[str]) -> List[str]:
-        urls = [url if url.endswith('/') else url + '/' for url in urls]
-        return urls
-    
 if __name__ == '__main__':
-    url = 'https://www.salaooval.com.br/campeonatos/#nacionais'
+    url = 'https://www.salaooval.com.br/campeonatos/'
 
     tournaments_scrapper: TournamentUrlsScrapper = TournamentUrlsScrapper(url, 'masculino')
 
@@ -133,4 +128,3 @@ if __name__ == '__main__':
 
     for url in urls:
         print(url)
-

@@ -12,4 +12,5 @@ TEAM_NAME_ALIASES: dict[str, str] = {
     "Blaze Futebol Americano": "Blaze FA",
     "Istepôs Futebol Americano": "Istepôs FA",
     "América Locomotiva": "Locomotiva FA",
+    "T-Rex": "Timbó Rex",
 }

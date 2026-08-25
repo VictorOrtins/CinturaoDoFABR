@@ -56,10 +56,6 @@ class GamesScrapper:
 
             tournament_tabs = self.__find_tournament_tabs()
 
-            if tournament_tabs is None:
-                print("Foram encontrados 0 jogos na URL")
-                continue
-
             all_games_url = self.__scrape_tournament(tournament_tabs, url)
 
             if len(all_games_url) != 0:
@@ -123,31 +119,55 @@ class GamesScrapper:
 
         return elements
 
-    def __scrape_tournament(self, tournament_tabs: List[WebElement], url: str) -> pd.DataFrame:
+    def __scrape_tournament(self, tournament_tabs: Optional[List[WebElement]], url: str) -> pd.DataFrame:
+        if tournament_tabs is None:
+            # Newer tournament pages on the source site (post block-editor migration,
+            # e.g. campeonato-pernambucano-2025, spfl-2026) render the same games
+            # tables directly on the page with no vc_tta-tabs wrapper at all -
+            # __find_tournament_tabs returns None for these. Used to mean the page was
+            # silently skipped entirely even though the data is right there; scrape the
+            # already-loaded page once instead, same as a single found tab would be.
+            return self.__scrape_current_tab()
+
         all_games_url = pd.DataFrame()
 
         tournament_tabs_text = [tab.get_attribute('textContent') for tab in tournament_tabs]
-        
+
         for tab_text in tournament_tabs_text:
             scrape_url = f'{url}#{tab_text.lower()}'
-        
+
             if not self.__get_tab_url(scrape_url):
                 continue
 
-            buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button", timeout=self.optional_element_wait_time)
+            all_games_url = pd.concat([all_games_url, self.__scrape_current_tab()], ignore_index=True)
+            all_games_url = all_games_url.drop_duplicates(subset=["Data", "Mandante", "Hor/Res", "Visitante"])
 
-            if buttons is not None:
-                for button in buttons:
-                    
-                    if not self.__button_clicked(button):
-                        continue
-                    
-                    all_games_url = self.__scrape_games(all_games_url)
-            else:
+        return all_games_url
+
+    def __scrape_current_tab(self) -> pd.DataFrame:
+        # Always scrape whatever's already visible first, unconditionally. Pagination
+        # buttons can exist in the DOM but be non-interactable (confirmed via
+        # is_displayed()==False, e.g. campeonato-brasileiro-2012/2013,
+        # campeonato-mato-grossense-2020, campeonato-catarinense-2020 - the underlying
+        # DataTable's data already fits on a single page, so the plugin renders but
+        # hides its own pagination controls). Clicking them then throws
+        # ElementNotInteractableException on every button, which __button_clicked
+        # silently swallows - previously that meant __scrape_games was never called at
+        # all for that tab, silently losing already-visible data. Scraping current
+        # state first, then trying to paginate for any additional pages, fixes that
+        # without changing behavior for tournaments that do have real pagination.
+        all_games_url = self.__scrape_games(pd.DataFrame())
+
+        buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button", timeout=self.optional_element_wait_time)
+
+        if buttons is not None:
+            for button in buttons:
+
+                if not self.__button_clicked(button):
+                    continue
+
                 all_games_url = self.__scrape_games(all_games_url)
 
-            all_games_url = all_games_url.drop_duplicates(subset=["Data", "Mandante", "Hor/Res", "Visitante"])
-            
         return all_games_url
 
     def __scrape_homeaway_table(self) -> pd.DataFrame:
@@ -191,6 +211,16 @@ class GamesScrapper:
 
         date = row.find_element(By.CLASS_NAME, "sp-event-date").get_attribute('datetime')
         teams = row.find_elements(By.CSS_SELECTOR, "span.team-logo")
+
+        if len(teams) < 2:
+            # Some rows on the source site have one team's logo widget left unset
+            # (a genuine site content gap, confirmed via manual DOM inspection on
+            # sao-paulo-football-league-2022 - not a scrape-timing issue). The row's
+            # structured markup can't resolve both team names, so skip it rather than
+            # crash the whole tournament scrape.
+            print(f"Linha de jogo em {date} sem os dois times cadastrados (encontrados: {len(teams)}), pulando.")
+            return pd.DataFrame()
+
         mandante = teams[0].get_attribute("title")
         visitante = teams[1].get_attribute("title")
 

@@ -35,6 +35,8 @@ class Preprocessor:
 
         games_df = self.__remove_temporada_column(games_df)
 
+        games_df = self.__drop_unused_columns(games_df)
+
         games_df = self.__remove_duplicate_games(games_df)
 
         games_df = self.__split_result_column(games_df)
@@ -66,7 +68,18 @@ class Preprocessor:
 
         return games_df
 
+    def __drop_unused_columns(self, games_df: pd.DataFrame):
+        # 'Liga' (Superliga's division/phase label) and 'Unnamed: 6' (an artifact of
+        # pd.read_html on that same layout) ride along from the raw scrape but aren't
+        # used anywhere downstream - unlike __remove_zero_column/__remove_temporada_column,
+        # this must not drop rows just because they have a real 'Liga' value.
+        unused_columns = [column for column in ['Liga', 'Unnamed: 6'] if column in games_df.columns]
+        return games_df.drop(columns=unused_columns)
+
     def __remove_duplicate_games(self, games_df: pd.DataFrame):
+        # Known limitation: 'Hor/Res' (the score) is part of the key, so a later-
+        # corrected score on an already-scraped game is treated as a new row instead
+        # of an update to the existing one. Out of scope to fix here.
         games_df = games_df.drop_duplicates(subset=['Data', 'Mandante', 'Hor/Res', 'Visitante', 'Torneio'])
         return games_df
           

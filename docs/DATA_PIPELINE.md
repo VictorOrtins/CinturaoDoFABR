@@ -1,9 +1,19 @@
 # Data pipeline: scrape → DB → deploy (handoff doc)
 
-**Status**: Phase 0 done (2026-08-23, branch `create-data-pipeline`) — see "Phase 0"
-below for what shipped and what was found verifying it. Phases 1-5 still not started —
-no pipeline task functions, no Airflow, no Fly.io app, no CI/CD. This is everything a
-future session needs to pick this up cold.
+**Status**: Phase 0 done (2026-08-23). Phase 1 nearly done (2026-08-24, branch
+`create-data-pipeline`) — task functions and CLI are built, the interrupted bootstrap
+crawl has been **resumed and completed** (all 208 live tournaments now scraped), and
+the trust-building milestone has been **run, diagnosed, and reviewed by Victor**, who
+confirmed the diff explanation holds up under manual spot-checking. Two real bugs were
+found and fixed this session (both working tree only, not committed): a second alias
+split (`T-Rex`/`Timbó Rex`) and a schema leak (`Liga`/`Unnamed: 6` columns). See "Phase
+1 progress (2026-08-24, continued)" below for the full diagnosis. **What's actually
+left**: run `regenerate_seed_csv` for real (it's only been tested against a scratch tmp
+file so far), decide what to commit, and decide whether to do a broader systematic
+alias-split audit before Phase 1.5. Nothing from this session is committed yet —
+`git status` on `create-data-pipeline` shows the real diff. Phases 1.5-5 still not
+started — no Airflow, no Fly.io app, no CI/CD. This is everything a future session
+needs to pick this up cold.
 
 ## Why this exists
 
@@ -250,6 +260,215 @@ step.
   *corrected* score on an already-scraped game would be treated as a new row rather
   than an update. Leave a comment near the dedupe call; changing `Preprocessor`'s key
   is out of scope here.
+
+#### Phase 1 progress (2026-08-24) — interrupted mid-run, not done
+
+**Built and working**: `filter_urls_by_year` (with unit tests covering trailing-year
+present/absent/boundary cases), `src/pipeline/tasks.py` (all 5 task functions, each
+taking optional path params so they're testable against tmp-dir fixtures rather than
+real `data/`/`backend/seed_data/` paths), `src/pipeline/update_games.py` (the
+`--since-year`/`--dry-run` CLI), `data/raw/games/` + `.gitignore` allowlist as planned.
+Integration tests for `merge_and_preprocess` (dedupe + alias fix) and
+`check_unresolved_teams` pass. A root `.venv` (via `uv`, `requirements.txt` + `pytest`)
+was created for these scripts — nothing existed at repo root for this before. **None of
+this is committed** — it's real, working tree state on `create-data-pipeline`.
+
+**The trust-building milestone is not complete.** The plan was: run the existing full
+historical scraper once (`add_fabr_game_day=True`, since that flag already exists
+specifically for the un-scrapable first FABR game — no new code needed for that part),
+then confirm `merge_and_preprocess` → `run_cinturao` reproduces
+`backend/seed_data/games.csv`. Attempting this surfaced real, previously-unknown
+scraper bugs — fixing them was necessary before the milestone could even be attempted
+properly, and doing so ran the process long enough that the user stopped it mid-scrape
+to end the session. **Do not assume the scraper needs no further changes** the way
+Phase 0's verification concluded — that conclusion covered only the 13-tournament test
+sample, not a real 208-tournament full crawl, and it doesn't hold at full scale.
+
+**Real bugs found and fixed this session** (all in the working tree, none committed):
+1. `TournamentUrlsScrapper` (`get_urls.py`) was rewritten from DOM-scraping the
+   `/campeonatos/` listing page's body content to querying the WordPress REST API
+   (`GET https://www.salaooval.com.br/wp-json/wp/v2/pages?parent=14`, paginated). The
+   listing page had silently stopped being updated after 2024 — 2025/2026 tournaments,
+   including the brand-new **Superliga** national championship, were completely
+   invisible to the old scraper despite having real, scrapable game data. Every
+   tournament page is a child of the same CMS parent page (id 14) regardless of
+   category or year, so this has no staleness and needs no year-guessing — a new
+   tournament shows up the moment it's published. This also made the old
+   `__append_missing_urls` hand-patches (a typo'd `matogrossense` slug, a duplicated
+   2018 link, a missing 2019 one) unnecessary; verified via the live REST response and
+   dropped rather than carried over. Full detail + how this was diagnosed: see
+   `get_urls.py`'s own comments and `tests/get_urls_test.py`.
+2. `GamesScrapper.__scrape_tournament` (`scrapper.py`) now falls back to scraping the
+   current page directly when `__find_tournament_tabs` finds no `vc_tta-tabs` wrapper
+   at all, instead of skipping the tournament entirely. Newer tournament pages (e.g.
+   `campeonato-pernambucano-2025`, `spfl-2026`) render the same games tables with no
+   tab structure whatsoever — confirmed live, this recovered real games that were
+   previously silently dropped. See `test_pernambucano_2025_sem_tabs`.
+3. `__get_card_result` now skips (with a warning, not a crash) a card row where fewer
+   than 2 `span.team-logo` elements are found, instead of raising `IndexError`. This is
+   a genuine site content gap (one team's logo widget was never set for two matches in
+   `sao-paulo-football-league-2022`), not a scrape-timing issue — confirmed via manual
+   DOM inspection; the opponent's name only exists as loose, unstructured text in the
+   match title, not resolvable to `teams.csv`'s naming.
+4. **The big one**: `__scrape_current_tab` used to *only* call `__scrape_games` as a
+   side effect of a successful pagination-button click — if a tab's pagination
+   controls exist in the DOM but are non-interactable (`is_displayed() == False`,
+   which happens whenever the underlying DataTable's data already fits on one page —
+   confirmed for `campeonato-brasileiro-2012`/`-2013`,
+   `campeonato-mato-grossense-2020`, `campeonato-catarinense-2020`), every click throws
+   `ElementNotInteractableException`, which was silently swallowed, so `__scrape_games`
+   was **never called at all** and the tab returned 0 rows despite the data already
+   being fully visible on load. Fixed by always scraping current state first,
+   unconditionally, then attempting to paginate for any additional pages. This is
+   disproportionately important: the cinturão algorithm needs an *unbroken* chain of
+   the champion's games, so losing even one tournament this way (in this case, exactly
+   the one where Fluminense FA's 2011-12-10 title reign continues) collapsed the whole
+   reconstructed history from 165 games down to ~35. Validated against
+   `test_campeonato_brasileiro_2012` (expects exactly 108) — passed after the fix, but
+   was non-deterministic once (106/108) across repeated runs, so this class of
+   pagination flakiness isn't fully eliminated, just made far less damaging (page-1
+   content is never lost anymore, even if a later page occasionally is).
+5. **Not a bug, but tripped up debugging**: team-name aliasing (`TEAM_NAME_ALIASES`)
+   happens in `Preprocessor`, not at scrape time — a raw scraped row uses the site's
+   own raw label (e.g. `"Fluminense Imperadores"`), not the alias-resolved name (e.g.
+   `"Fluminense FA"`). Searching raw/scraped data for an alias-resolved name will
+   silently find nothing even when the row is present.
+6. Superliga's newer table layout introduces extra raw columns (`Liga`, `Unnamed: 6`)
+   not seen on older tournament pages, plus a couple of DataTables "No data available
+   in table" placeholder rows getting scraped as if real. Checked: both are already
+   handled correctly by existing preprocessing (`Liga` just rides along unused;
+   `__remove_unplayed_matches` correctly drops the placeholder rows and future/
+   unplayed Superliga 2026 fixtures via their unparseable score strings) — no fix
+   needed, but worth knowing before assuming a new "column count" issue is a bug.
+
+**The bootstrap script itself had a bug, separate from the scraper**: the throwaway
+script used to run the full crawl (lived in a session scratchpad, not committed) called
+`scrape_tournaments(..., add_fabr_game_day=True)` but never re-saved the returned
+`all_games` to CSV afterward — `add_fabr_game_day` appends its row to `all_games` in
+memory *after* the loop that calls the scraper's own incremental `__save_to_csv`, so
+the FABR day game was silently missing from disk even though `len(all_games)` in memory
+included it. **Anyone re-running a full bootstrap crawl must explicitly
+`all_games.to_csv(path, index=False)` after `scrape_tournaments` returns** — don't
+trust the scraper's own incremental saves to include it.
+
+#### Phase 1 progress (2026-08-24, continued) — full bootstrap crawl complete, trust milestone diagnosed
+
+**The interrupted crawl was resumed and completed this session, safely (by slug, not
+index, per the plan below).** `data/raw/games/games_bootstrap_part2.csv` now holds the
+remaining 178 tournaments (4172 rows, incl. the one-time FABR day game), scraped with
+zero tracebacks/exceptions — only 3 known "missing team logo" data-gap warnings (the
+already-documented site content gap, not a new issue). Combined with the original
+`games_bootstrap.csv` (30 tournaments, 2070 rows), **all 208 live masculino tournament
+URLs are now covered.** Two tournaments (`campeonato-mato-grossense-2020`,
+`campeonato-catarinense-2020`) returned 0 games — verified via raw `curl` (no JS) that
+their tables are genuinely empty in the site's own HTML, and no 2021 page exists for
+either league at all; consistent with COVID-cancelled 2020/2021 seasons, not a scraper
+bug (confirmed before trusting it, per this doc's own standing caution not to assume).
+
+**Ran the actual trust-building milestone**: `update_games.py --dry-run` over the
+completed bootstrap → compared the resulting `data/processed/games_cinturao.csv`
+against the committed `backend/seed_data/games.csv`. Initial diff was large (148 vs 165
+rows, 65 missing / 48 extra) — investigated rather than accepted or dismissed:
+
+1. **Found and fixed a second real alias gap**, same class as the `América
+   Locomotiva`/`Locomotiva FA` one from Phase 0: the site's raw schedule-table label for
+   one team is split between `"T-Rex"` (146 raw occurrences) and `"Timbó Rex"` (34
+   occurrences) across many years (2010-2024) — confirmed both exist in the raw scraped
+   data for what's the same team. Unlike the Locomotiva case, here the **already-
+   committed `teams.csv`** uses the long form (`Timbó Rex`, with site slug
+   `/times/timbo-rex/`), so canonicalized the other direction: added `"T-Rex": "Timbó
+   Rex"` to `TEAM_NAME_ALIASES` (not committed yet, working tree only). Re-running after
+   this fix improved the diff to 180 vs 165 rows (16 missing / 31 extra) — a real, now-
+   fixed bug, not chased away by tolerance.
+2. **Traced why an exact reproduction isn't the right bar, and shouldn't be chased
+   further**: confirmed via direct row inspection that `Cinturao.run_cinturao_algorithm`
+   (`src/cinturao_algorithm/cinturao.py`) is a **linear greedy walk** — start at game 0,
+   take its winner as champion, find that champion's chronologically-next game by name
+   match, its winner becomes the new champion, repeat. This means **any single upstream
+   correction (like the T-Rex fix) cascades and reshapes every downstream game in the
+   chain from that point on** — a team's title-defense games were previously split
+   across two name-identities, so fixing the split doesn't just add rows, it changes
+   which game counts as "the champion's next game" from 2010/2011 onward, producing a
+   legitimately different (and more correct) sequence, not a subset/superset of the old
+   one. The remaining 16/31 diff is this expected fingerprint, not a new defect — verified
+   by checking that the *raw* and *preprocessed* data for the affected games (e.g. JEC
+   Gladiators' 2011 Campeonato Catarinense games) were present all along; an earlier
+   manual check that seemed to show them missing was a case-sensitivity bug in the
+   diagnostic query itself (`'campeonato-catarinense-2011'` vs. the preprocessor's own
+   title-cased `'Campeonato Catarinense 2011'`), not a real gap — worth remembering
+   before trusting a quick manual diff over the pipeline's own output.
+3. **One relabeling traced to genuine site content drift, not a bug**: two games
+   (2018-10-14, 2019-01-13) are tagged `Copa Ouro 2017` in the old committed data but
+   `Copa Ouro 2018` in the new scrape — confirmed `copa-ouro-2018` is a real, separate
+   live tournament page (10 games) distinct from `copa-ouro-2017` (27 games); the site's
+   own tournament categorization for these two games evidently changed sometime after
+   the old seed data was originally generated. Not fixable in our code — flagged as a
+   real, if narrow, category of drift: **the source site's history isn't append-only**,
+   it can silently reclassify old content.
+4. **`check_unresolved_teams()` confirmed stable, not a new gap**: ran it against both
+   the new and old outputs — the unresolved-name set (13 names each) is nearly
+   identical; the only differences are two brand-new 2026 teams (`Calvary Cavaliers`,
+   `Ponta Grossa Phantoms`, expected — new tournament, not yet in `teams.csv`) and two
+   names the new run resolves that the old baseline didn't. This is the same
+   already-known, already-scoped-for-Phase-2 gap (`CLAUDE.MD`'s "20 of 165 games
+   silently dropped" note) — not something this session introduced or needs to fix.
+5. **Minor cleanliness gap found, and fixed the same session**: `Liga` (8 real
+   Superliga division/phase values, e.g. `"Superliga D1 - Playoffs"`) and `Unnamed: 6`
+   (always empty) both leaked from the raw Superliga table layout all the way into
+   `games_cinturao.csv`'s column set — the doc's Phase 0 note that they "ride along
+   unused" was true for correctness but didn't anticipate them surviving into the final
+   seed-CSV schema, which the old committed `games.csv` doesn't have. Fixed: new
+   `Preprocessor.__drop_unused_columns` step drops both explicitly (distinct from
+   `__remove_zero_column`/`__remove_temporada_column`, which also filter out *rows* —
+   `Liga` has real values on genuine games, so only the column should go, not the
+   rows). Verified: re-ran the dry-run after the fix, `games_cinturao.csv`'s 11 columns
+   now match the old committed CSV's exactly, row count unchanged (180), both test
+   suites (pipeline 11/11, backend 90/90) still green.
+
+**User review of the diff (2026-08-24, same session)**: presented the row-level diff as
+an artifact grouped into new/relabeled/cascade (see point 2's explanation above).
+Victor spot-checked the JEC Gladiators portion of the cascade bucket by hand and
+confirmed it's accurate — "spot on." Also separately noted, while reviewing, one
+playoff game that appears correctly captured now and was likely missed by whatever
+scraper version produced the original committed data because it lived on a different
+tournament-page tab — consistent with the tab-handling fixes in `CLAUDE.MD`'s scraper
+section, not a new gap. Victor was also unsure whether the *original* 2024 generation
+of `games.csv` re-ran the full pipeline every time a scraper bug was fixed, or only
+sometimes — worth keeping in mind as another reason the old file isn't a perfect
+ground truth to reproduce exactly.
+
+**State at end of session**: `TEAM_NAME_ALIASES` has the `T-Rex` fix applied, and
+`Preprocessor` now drops `Liga`/`Unnamed: 6` — both in the working tree, uncommitted.
+`backend/seed_data/games.csv` has **still not been overwritten** —
+`regenerate_seed_csv` was not called against the real path this session, only tested
+against a scratch tmp file. Nothing has been committed. Remaining open decision point
+for next session: whether to do a broader systematic alias-split audit (every team's
+raw schedule-table label cross-checked against `teams.csv`) before treating name
+resolution as trustworthy in general — two real splits (Locomotiva, T-Rex) have now
+been found, both incidentally rather than systematically. The "is 16/31 an acceptable
+trust bar" question from earlier this session is effectively resolved: Victor's manual
+review confirmed the explanation holds up, so the actual next step is running
+`regenerate_seed_csv` for real and deciding what to commit — not further diagnosis.
+
+**Exact interruption state (2026-08-24), for resuming safely**: the last full crawl
+attempt (208 masculino tournament URLs, via the new REST-based discovery) was killed by
+the user 30 tournaments in. `data/raw/games/games_bootstrap.csv` on disk right now holds
+those 30 tournaments' games (2070 rows) — index order is date-descending, most recent
+tournament first (`superliga-2026` was tournament 0). **Do not resume by hardcoding a
+URL-list index** — if a new tournament page gets published on the site before the next
+session, the whole list shifts and an index-based resume would silently skip or
+re-scrape the wrong tournaments. Instead, resume by slug: re-fetch the current URL list
+via `TournamentUrlsScrapper(...).get_urls()`, filter out any URL whose slug already
+appears in `games_bootstrap.csv`'s `Torneio` column (read the file's existing
+`Torneio.unique()` for the exact list — as of this session it's the 30 tournaments from
+`superliga-2026` through `campeonato-gaucho-2023`), scrape the remainder into a
+*separate* new raw file, and add the FABR day game once (to either file — an exact
+duplicate is harmless, `merge_and_preprocess`'s dedupe key would just collapse it if
+added twice). `merge_and_preprocess` already concatenates every file with `games` in
+its name under `data/raw/games/`, so a second partial file merges automatically — no
+manual stitching needed. Once the crawl completes, re-run the trust-building comparison
+against `backend/seed_data/games.csv` (the doc's original Phase 1 plan) before touching
+`regenerate_seed_csv`/committing anything.
 
 ### Phase 1.5 — Airflow DAG
 - New `dags/update_games_dag.py` — a real Airflow DAG: `PythonOperator` per task from
