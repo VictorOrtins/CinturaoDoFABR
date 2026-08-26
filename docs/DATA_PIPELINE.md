@@ -1,19 +1,20 @@
 # Data pipeline: scrape → DB → deploy (handoff doc)
 
-**Status**: Phase 0 done (2026-08-23). Phase 1 nearly done (2026-08-24, branch
-`create-data-pipeline`) — task functions and CLI are built, the interrupted bootstrap
-crawl has been **resumed and completed** (all 208 live tournaments now scraped), and
-the trust-building milestone has been **run, diagnosed, and reviewed by Victor**, who
-confirmed the diff explanation holds up under manual spot-checking. Two real bugs were
-found and fixed this session (both working tree only, not committed): a second alias
-split (`T-Rex`/`Timbó Rex`) and a schema leak (`Liga`/`Unnamed: 6` columns). See "Phase
-1 progress (2026-08-24, continued)" below for the full diagnosis. **What's actually
-left**: run `regenerate_seed_csv` for real (it's only been tested against a scratch tmp
-file so far), decide what to commit, and decide whether to do a broader systematic
-alias-split audit before Phase 1.5. Nothing from this session is committed yet —
-`git status` on `create-data-pipeline` shows the real diff. Phases 1.5-5 still not
-started — no Airflow, no Fly.io app, no CI/CD. This is everything a future session
-needs to pick this up cold.
+**Status**: Phase 0 done (2026-08-23). **Phase 1 is done** (2026-08-24 through
+2026-08-26, branch `create-data-pipeline`) — task functions and CLI are built, the
+bootstrap crawl is complete (all 208 live tournaments), the systematic team-name-alias
+audit flagged as an open question on 2026-08-24 is done (28 splits found via a new
+URL-slug-based method, 25 applied after review, 6 human-proposed merges checked and
+correctly rejected — see "Team name slug audit (2026-08-26)"), and — the item that used
+to be "what's actually left" — **both real seed CSVs have been regenerated for the
+first time this phase**: `backend/seed_data/games.csv` (165→178 rows) and `teams.csv`
+(182→386 rows, plus 5 more aliases found in the process), reconciled and verified (see
+"Backend regeneration (2026-08-26)" at the end of that same section). The known
+team-resolution gap in `CLAUDE.MD` dropped from 20/165 to 4/178. Both test suites green.
+Nothing from this session is committed yet — `git status` on `create-data-pipeline`
+shows the real diff; deciding what to commit is the next actual decision. Phases 1.5-5
+still not started — no Airflow, no Fly.io app, no CI/CD. This is everything a future
+session needs to pick this up cold.
 
 ## Why this exists
 
@@ -470,6 +471,250 @@ manual stitching needed. Once the crawl completes, re-run the trust-building com
 against `backend/seed_data/games.csv` (the doc's original Phase 1 plan) before touching
 `regenerate_seed_csv`/committing anything.
 
+*(The crawl referenced above did complete later that session — see "Phase 1 progress
+(2026-08-24, continued)" earlier in this doc. The "broader systematic alias-split
+audit" it left as an open question is the subject of the next section.)*
+
+### Team name slug audit (2026-08-26)
+
+**Why**: as of 2026-08-24, two team-name splits (Locomotiva FA/América Locomotiva,
+T-Rex/Timbó Rex) had been found - both incidentally, one via a test failure and one via
+a manual diff review, not systematically. The open question left at the end of that
+session was whether a third, unfound split could be silently fragmenting the belt
+algorithm's chain-walking the same way T-Rex/Timbó Rex did (that one bug alone
+collapsed 165 reconstructed games down to ~35 before it was caught). This section is
+that systematic pass.
+
+**Method**: a team's raw display name can drift (rename, short-label-vs-full-name
+split, a typo the source site never fixed), but the URL of their site page doesn't -
+`/times/<slug>/` or `/equipe/<slug>/` is a stable ID. So:
+
+1. `GamesScrapper` (`src/scrapping/scrape_games/scrapper.py`) was extended to capture
+   the team-page URL alongside each side's name on every game row - two new raw
+   columns, `Mandante URL`/`Visitante URL`. The two site layouts store this
+   differently: the card layout nests `<a href>` *inside* `span.team-logo`
+   (`__get_team_logo_url`), the homeaway-table layout wraps the span in a parent
+   `<a>` instead (`__get_team_row_url`) - confirmed via live DOM inspection on both
+   layouts before writing either extractor, not assumed symmetric.
+2. Both the games and teams datasets were fully re-scraped with this change (see
+   "Full re-scrape (2026-08-25/26)" below for what that actually took - it wasn't
+   clean on the first attempt).
+3. `src/pipeline/audit_team_aliases.py` (new, reusable - re-run it with
+   `python -m src.pipeline.audit_team_aliases`) groups every raw team appearance in
+   `data/raw/games/*.csv` by that URL's slug. Any slug used under more than one
+   distinct raw label is a provable name split - not a fuzzy string-similarity guess,
+   a fact about two rows linking to the same site page. Canonical name = whichever
+   label appears on that slug's most recently dated game (matches the precedent
+   already set for Locomotiva FA: prefer the current game-listing label over
+   whatever the team's bio page happens to say, since the bio page itself can lag -
+   confirmed independently this session, see below).
+
+**What it found**: 28 slugs used under more than one label. 3 already correctly
+resolved to one name via existing aliases (T-Rex/Timbó Rex and two others that turned
+out to already be fine). **25 were new** - reviewed with Victor via a grouped visual
+artifact (categorized by finding, most-recent label recommended, same "categorize and
+let Victor spot-check" pattern established for the 2026-08-24 diff review), all
+25 confirmed and applied to `TEAM_NAME_ALIASES` as recommended. One pre-existing alias
+was also found wrong and corrected: `"Fluminense Imperadores": "Fluminense FA"` -
+`"Fluminense FA"` never appears as a raw label anywhere in the scraped data at all
+(verified against the full dataset), so that alias was a guess made before slug
+evidence existed. The slug audit traced `Fluminense Imperadores`'s real identity to a
+succession chain instead: `RJ Imperadores` (2009) → `Fluminense Imperadores`
+(2010-2012) → `Flamengo Imperadores` (2013-2026), three different site pages for one
+team over time, zero games where any of the three played each other.
+
+**A second class of teams' bio pages confirmed stale, independent of the games-data
+audit**: re-scraping `teams.csv` and diffing names against the committed version (before
+the `\xa0`-whitespace bug below was found and was inflating the diff) surfaced 7 real
+cases where a team's bio-page name lags its current game-listing name - e.g. the
+Locomotiva-FA-style case repeats: `União da Serra`'s bio page still says "União da
+Serra" while every 2026 game lists it as "Juventude FA" (already aliased, unaffected by
+this session). This confirms bio-page text is not a reliable canonicalization source in
+general, which is why the slug audit's canonicalization rule uses the most-recent
+*game-listing* label, never the bio page.
+
+**Cross-slug merges Victor proposed and why 6 of 7 were rejected**: the slug audit can
+only detect a split *within one site page* - it has no way to know that two genuinely
+different team pages are actually the same real-world team across time (e.g. after a
+merger or rebrand). Victor supplied that knowledge for 7 cases. Checking each against
+the raw game data (`check_self_play_clashes` in `audit_team_aliases.py`) found that 6
+of them have real historical games where the two "same" labels played each other -
+proof they were separate opponents at the time, not one team under two names:
+
+| Proposed merge | Evidence against it |
+|---|---|
+| Curitiba Hurricanes / Curitiba Predadores → Paraná HP | 6 games between them, 2011-2013 |
+| Salvador Kings → Cavalaria 2 de Julho | 1 game vs. Vitória All Saints, 2014-05-18 |
+| Dragões do Mar → Ceará Caçadores | 4 games vs. Ceará Cangaceiros, 2011-2013 |
+| Paysandu Lobos → Vingadores FA | 4 games vs. Vingadores FA, 2018-2019 |
+| Campo Grande Cobras / Jacarés do Pantanal → CG Predadores | 1 game between them, 2014-10-18 |
+| Restinga Redskulls/Cruzeiro Lions → Porto Alegre Pumpkins | 3 games vs. Porto Alegre Pumpkins, 2016-2017 |
+
+Per Victor: these were genuinely separate clubs that later merged into or were
+succeeded by the surviving name - real organizational history, not a scraper artifact.
+Merging their labels retroactively would turn real historical matchups into a team
+playing itself and corrupt the belt algorithm's chain, so **all 6 were deliberately
+left unaliased** - every name above remains its own independent team. This is recorded
+both here and as a comment block at the bottom of `team_aliases.py`, since it's exactly
+the kind of decision a future session could otherwise "fix" by mistake. Only the 7th
+proposed merge (`Fluminense Imperadores` → `Flamengo Imperadores` group) had zero
+clashes and was applied.
+
+**Full re-scrape (2026-08-25/26) - real infra bugs hit, not just the URL-capture
+code change**:
+- Ran the games and teams re-scrapes **concurrently** with each other (and, briefly,
+  the test suite) to save time - this backfired. 11 tournaments (266 games) came back
+  completely empty in the games crawl; comparing per-tournament row counts against the
+  previously-trusted bootstrap caught it before it was trusted. 9 of the 11 failed
+  silently at `driver.get(url)` itself (caught and swallowed by
+  `scrape_tournaments`'s top-level `try/except: continue`, no log line at all) - almost
+  certainly contention from running multiple Selenium sessions against the same live
+  site at once, not a real site change. Re-scraped those 11 in isolation afterward;
+  all 11 matched the old trusted counts exactly. **Lesson for next time**: don't run
+  more than one Selenium-driving crawl against this site concurrently, and always
+  diff new per-tournament counts against the last trusted crawl before treating a
+  full re-scrape as done - a partial silent failure looks identical to a real "no
+  games" result unless you check.
+- The teams scraper hung for **2.5 hours** on team #69 of 358, still consuming CPU the
+  whole time - not a crash, a true hang. Root cause:
+  `get_dominant_color` (`src/utils/utils.py`) called `requests.get(image_url,
+  stream=True)` with no `timeout`, so one stalled image download blocked the entire
+  single-threaded scrape loop forever. Fixed with `timeout=30`; killed and resumed the
+  scrape from the 69 already-saved teams (`TeamsScrapper`'s per-team try/except now
+  correctly catches the resulting `requests.exceptions.Timeout` and skips, instead of
+  hanging).
+- `TeamUrlsScrapper` (`src/scrapping/scrape_teams/get_urls.py`) had the same staleness
+  bug already fixed for tournaments in Phase 0/1: it scraped the `/times/` listing
+  page's rendered links, which doesn't reliably surface every team (confirmed: the two
+  brand-new 2026 teams, Calvary Cavaliers and Ponta Grossa Phantoms, were missing).
+  Rewritten to query the site's own REST API instead - teams are a SportsPress custom
+  post type (`sp_team`) with its own namespace, `GET
+  /wp-json/sportspress/v2/teams` (**not** `/wp-json/wp/v2/teams` - that 404s; the
+  type's `rest_base` in `/wp-json/wp/v2/types` is misleading, the real route only shows
+  up in the root `/wp-json/` index under a plugin-specific namespace). Returns 429
+  teams, up from 358 via the old DOM scrape, both new teams included. Use each team's
+  `link` field, not its `slug` - they can differ (e.g. one team's REST `slug` is
+  `tigres-fa` but its actual `link` is `.../times/tigres-futebol-americano/`).
+- A separate real bug found via the teams re-scrape, unrelated to discovery: some team
+  bio pages use a non-breaking space (`\xa0`) instead of a regular space inside the
+  name `<h1>`. `.strip()` only trims the ends, so it survived into the scraped name and
+  made 7 genuinely-unchanged names look like false-positive renames when diffed against
+  the committed `teams.csv`. Fixed in `TeamsScrapper.__scrape_complete_team_info`
+  (`.replace('\xa0', ' ')`).
+- **Housekeeping**: `data/raw/games/games_bootstrap.csv` +
+  `games_bootstrap_part2.csv` (the pre-URL-capture bootstrap, committed in `937aea3`)
+  are now superseded by a single complete re-scrape and were deleted from the working
+  tree; the new file was written to `games_bootstrap_with_urls.csv` during the session
+  and renamed back to `games_bootstrap.csv` afterward, so the "one bootstrap file"
+  convention `Preprocessor.read_data_in_folder`/`audit_team_aliases.py` both depend on
+  (concat every file with `games` in the name under `data/raw/games/`) still holds. A
+  transient repair file created mid-session (`games_repair_empty_tournaments.csv`, the
+  11 recovered tournaments) was merged into the bootstrap file and deleted once
+  reconciled - **if you see either old filename or the repair file again, something
+  regenerated stale state; the single `games_bootstrap.csv` is the only file that
+  should exist there.**
+
+**Verification before trusting any of this**: after the full re-scrape, per-tournament
+row counts were diffed against the previously-trusted bootstrap - 0 mismatches (6242
+games both before and after, across all 208 tournaments) once the 11-tournament repair
+was merged in. After applying all 25 alias changes, `TEAM_NAME_ALIASES` was applied to
+every raw row and checked for self-matches (`Mandante` resolving equal to `Visitante`
+after aliasing) - 0 real self-matches (4 hits were all the pre-existing "No data
+available in table" placeholder rows, already dropped by
+`Preprocessor.__remove_unplayed_matches`, not a new issue). `python -m
+src.pipeline.audit_team_aliases` re-run after applying the changes reports 0 new
+findings, 28/28 already covered. Both test suites green (backend 90/90,
+`tests/pipeline_tasks_test.py` 3/3 - one assertion there was updated from the old
+`"Sada Cruzeiro/Galo FA"` compound canonical to the new `"Galo FA"`, a deliberate
+simplification now that slug evidence confirms `Galo FA` is the name used on every game
+since 2018, not a regression).
+
+**Backend regeneration, same session (2026-08-26) — Phase 1's last open item, now
+done**: with all 45 `TEAM_NAME_ALIASES` entries in place (40 from the audit above, plus
+5 more found via this step - see below), both real seed CSVs were finally regenerated
+for the first time since Phase 1 started:
+
+- **Games**: `merge_and_preprocess` → `run_cinturao` → `regenerate_seed_csv` against
+  the real `backend/seed_data/games.csv` path (previously only ever tested against tmp
+  fixtures). 165 → 178 rows. Diffed against the old committed file the same way as the
+  2026-08-24 trust-building review: 41 of the changed rows paired cleanly as
+  rename-cascades (same date/score/tournament, alias-resolved names differ); the
+  remaining ~55 are the expected "linear greedy-walk chain reshapes downstream of an
+  upstream identity fix" effect already established and accepted last session, verified
+  again here by hand-tracing the reconstructed champion-defense sequence around JEC
+  Gladiators/Timbó Rex/Coritiba Crocodiles (2009-2011) and confirming every row's
+  `Defensor do Título` matches the previous row's winner with no break in the chain.
+  `Preprocessor.__drop_unused_columns` was extended to also drop `Mandante
+  URL`/`Visitante URL` before the seed CSV (raw-data provenance, not part of the
+  backend's schema - same treatment as `Liga`/`Unnamed: 6`).
+- **Teams**: re-scraped in full with the fixed REST-based `TeamUrlsScrapper`- 429 URLs
+  attempted, 388 scraped (21 explicit 404-style page failures, logged and skipped; ~20
+  more silently collapsed by `TeamsScrapper`'s own `drop_duplicates(subset=['Nome'])` -
+  not individually investigated, consistent with the already-understood `/times/` vs
+  `/equipe/` dual-listing pattern for the same team). Reconciling this against the
+  committed `teams.csv` needed care beyond a plain overwrite: `Estado`/`Regiao` (used by
+  `backend/app/seed.py`'s `Team.state`/`.region`, and by the LLM query service) exist
+  only in the old committed file, and had to be carried forward **by team-page URL
+  slug, not by name** - matching old to new rows by name would have silently dropped
+  the data for exactly the teams whose name just changed. `TEAM_NAME_ALIASES` was
+  applied to the fresh scrape's names too, so `teams.csv`'s canonical names match what
+  `games.csv` now uses; verified zero of the 182 previously-committed team slugs went
+  missing from the fresh scrape, and exactly one expected collision (`Fluminense
+  Imperadores` and `Flamengo Imperadores` bio pages both now resolving to the same
+  canonical name - kept the `Flamengo Imperadores` row, which already had `Estado`
+  populated). One row with a genuinely blank scraped name (`moura-lacerda-dragons` - the
+  page doesn't have the `div.wpb_wrapper h1` element `__scrape_complete_team_info`
+  expects) was dropped rather than seeded with an empty name. Final: 386 teams (up from
+  182 - the fixed discovery covers every category, not just masculino, which the old
+  DOM-scraped file happened to undercount even for its own scope).
+- **5 more aliases found in the process, added to `TEAM_NAME_ALIASES`**: checking the
+  post-regeneration unresolved-team count (8, down from the original 20) surfaced a few
+  more instances of the same "bio page uses the full/verbose name, game listings use
+  the short one" pattern this whole audit is built around - just ones the slug audit
+  couldn't catch because the verbose bio-page variant never appears as a raw *game*
+  label anywhere (`Tritões Futebol Americano`→`Tritões FA`, `Miners Futebol
+  Americano`→`Miners FA`, `Paraná Clube Guardian Saints`→`PRC Guardian Saints`, `Gaspar
+  Black Hawks`→`Black Hawks`, `Tigres Futebol Americano`→`Tigres FA`). Final unresolved
+  count: **4** (`Itapema White Sharks`, `São José WSI` (twice), `Botafogo Reptiles` -
+  the last confirmed via a live 404, a missing-page problem rather than a name
+  mismatch) - down from 20. `backend/tests/test_seed.py`'s locked-in regression test
+  was updated to the new numbers (165→178 total rows, 145→174 seeded games) with a
+  comment explaining why, per that test's own stated purpose (catch *unintended*
+  drift, not block a deliberate, understood change). `CLAUDE.MD`'s "Known data-quality
+  gap" note was updated to match. Both test suites green (backend 90/90, pipeline
+  3/3) after these changes.
+- **Housekeeping**: `data/raw/teams/` had the same superseded-files issue as
+  `data/raw/games/` did earlier this session - cleaned up to a single
+  `teams_bootstrap.csv`.
+
+**Regenerating the CSVs doesn't update the running app by itself - a real gap found
+the same session**: Victor ran the regeneration above, restarted the app via
+`scripts/start-linux.sh`, and saw no change. Root cause: `backend/app/seed.py`'s
+`seed_if_empty` only seeds an empty DB, and `backend/data` is a **named Docker volume**
+(`backend_data`), not a bind mount - it survives container restarts/rebuilds
+independently of the host's `backend/seed_data/*.csv`, so an already-seeded volume just
+keeps serving whatever it had, forever, regardless of what the CSVs now say. Deleting
+the *local* `backend/data/app.db` did nothing either, since that's not the file path
+the container actually reads (confirmed via `backend/app/config.py`'s
+`database_path` vs. the volume mount in `docker-compose.yml`). New `scripts/reseed-db.sh`
+is the fix until Phase 2's `sync_from_csv` exists: clears the volume's `app.db` via a
+throwaway `docker compose run` container, rebuilds the backend image (so a stale
+`COPY seed_data` layer can't also be the culprit), and restarts. Verified end-to-end:
+after running it, the backend log shows exactly the 4 expected skip warnings and
+`/api/games` returns 174 games, matching what the regeneration step above produced.
+This script is exactly the manual/local equivalent of what Phase 4's plan already
+describes happening automatically in production ("the new image's `lifespan` runs
+`sync_from_csv` against the mounted volume on boot") - the only difference is Phase 2
+hasn't been built yet, so today this needs an explicit script instead of being
+unconditional on every startup. Once `sync_from_csv` exists, `reseed-db.sh` can be
+deleted.
+
+**State at end of session (2026-08-26)**: `TEAM_NAME_ALIASES` has 45 entries (was 15).
+Both `backend/seed_data/games.csv` and `teams.csv` are fully regenerated and
+reconciled - this was the last item blocking the rest of Phase 1 progressing, and it's
+done. Nothing from this session is committed - `git status` on `create-data-pipeline`
+shows the real diff, same as always.
+
 ### Phase 1.5 — Airflow DAG
 - New `dags/update_games_dag.py` — a real Airflow DAG: `PythonOperator` per task from
   `src/pipeline/tasks.py`, explicit `>>` dependency chain, `retries=2` with backoff on
@@ -605,7 +850,12 @@ understood, not chosen by default.
   CLI entrypoint
 - `dags/update_games_dag.py` (new) — Airflow DAG wrapping the same task functions
 - `src/scrapping/scrape_games/get_urls.py` — add `filter_urls_by_year`
-- `src/utils/team_aliases.py` (new) — consolidated, typo-fixed alias source of truth
+- `src/utils/team_aliases.py` — consolidated alias source of truth; also documents,
+  in a trailing comment block, the cross-slug merges that were checked and rejected —
+  read it before adding a new alias, not just before reading the dict
+- `src/pipeline/audit_team_aliases.py` (new, 2026-08-26) — re-runnable slug-based
+  audit for finding new team-name splits; run before trusting name resolution after
+  any future re-scrape
 - `backend/app/seed.py` — replace `seed_if_empty` with `sync_from_csv`
 - `backend/app/models.py` — composite unique index on `Game`
 - `backend/app/main.py`, `backend/tests/conftest.py` — swap seed call

@@ -73,7 +73,10 @@ class Preprocessor:
         # pd.read_html on that same layout) ride along from the raw scrape but aren't
         # used anywhere downstream - unlike __remove_zero_column/__remove_temporada_column,
         # this must not drop rows just because they have a real 'Liga' value.
-        unused_columns = [column for column in ['Liga', 'Unnamed: 6'] if column in games_df.columns]
+        # 'Mandante URL'/'Visitante URL' (added 2026-08-26 for the team-name slug
+        # audit, see docs/DATA_PIPELINE.md) are raw-data provenance, not something the
+        # backend schema expects - keep them on data/raw/*, drop before the seed CSV.
+        unused_columns = [column for column in ['Liga', 'Unnamed: 6', 'Mandante URL', 'Visitante URL'] if column in games_df.columns]
         return games_df.drop(columns=unused_columns)
 
     def __remove_duplicate_games(self, games_df: pd.DataFrame):

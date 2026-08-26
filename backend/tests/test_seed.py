@@ -18,12 +18,20 @@ def test_seed_skip_count_matches_known_team_name_mismatches(
     """Locks in the current, known count of games skipped because their team names
     don't exactly match teams.csv (see the comment in app/seed.py::_seed_games). If
     this fails, either the seed CSVs changed (update the expected numbers below) or a
-    regression silently started dropping more/fewer games than before."""
+    regression silently started dropping more/fewer games than before.
+
+    Updated 2026-08-26: both CSVs were regenerated from a full re-scrape plus the
+    team-name slug audit (see docs/DATA_PIPELINE.md) - 165->178 total rows (the belt
+    algorithm's reconstructed chain legitimately changed shape once ~30 accumulated
+    alias fixes were finally applied), and the skip count dropped from 20 to 4 (the
+    remaining 4: 'Itapema White Sharks', 'São José WSI', and 'Botafogo Reptiles' -
+    the last confirmed via a live 404 - have no resolvable team page at all, a
+    different problem than a name mismatch)."""
     with (settings.seed_data_dir / "games.csv").open(encoding="utf-8") as f:
         total_rows = sum(1 for _ in csv.DictReader(f))
 
-    assert total_rows == 165
-    assert seeded_db_session.query(Game).count() == 145
+    assert total_rows == 178
+    assert seeded_db_session.query(Game).count() == 174
 
 
 def test_seed_is_idempotent(seeded_db_session: Session) -> None:

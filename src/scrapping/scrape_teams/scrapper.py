@@ -85,7 +85,10 @@ class TeamsScrapper:
             team_name = self.driver.find_elements(By.CSS_SELECTOR, "div.wpb_wrapper h1")
 
         
-            team_name = ' '.join([word.get_attribute('textContent').strip() for word in team_name])
+            # Some team pages use a non-breaking space (\xa0) mid-h1 instead of a
+            # regular space - .strip() only trims the ends, so it survives into the
+            # name unless explicitly normalized here.
+            team_name = ' '.join([word.get_attribute('textContent').strip() for word in team_name]).replace('\xa0', ' ')
 
             img_url = self.driver.find_element(By.CSS_SELECTOR, "figure.wpb_wrapper a.vc_single_image-wrapper").get_attribute("href")
             team_sede = self.driver.find_element(By.XPATH, "//p[contains(., 'Sede')]").get_attribute('textContent').split("Sede")[-1].strip().split("\n")[0]

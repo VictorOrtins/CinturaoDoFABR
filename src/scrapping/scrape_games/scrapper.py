@@ -223,6 +223,8 @@ class GamesScrapper:
 
         mandante = teams[0].get_attribute("title")
         visitante = teams[1].get_attribute("title")
+        mandante_url = self.__get_team_logo_url(teams[0])
+        visitante_url = self.__get_team_logo_url(teams[1])
 
         WebDriverWait(self.driver, self.wait_time).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "h5.sp-event-results span.sp-result")))
 
@@ -243,16 +245,46 @@ class GamesScrapper:
             "Data": date,
             "Mandante": mandante,
             "Hor/Res": f"{pontos_mandante} - {pontos_visitante}",
-            "Visitante": visitante
+            "Visitante": visitante,
+            "Mandante URL": mandante_url,
+            "Visitante URL": visitante_url,
         }
 
         return pd.DataFrame([game_data])
+
+    def __get_team_logo_url(self, team_logo: WebElement) -> Optional[str]:
+        # The team-page link sits differently depending on layout: the card layout
+        # (this method) nests an <a href> *inside* span.team-logo, while the
+        # homeaway-table layout (__get_team_row_url) wraps the span in a parent <a>
+        # instead. Both point at the same kind of team page URL, just structured
+        # differently - never assume one shape for both layouts.
+        try:
+            return team_logo.find_element(By.TAG_NAME, "a").get_attribute("href")
+        except Exception:
+            return None
 
     def __get_table_df(self, table: WebElement) -> pd.DataFrame:
         html_da_tabela = table.get_attribute("outerHTML")
         df = pd.read_html(StringIO(html_da_tabela))[0]  # Extrai a tabela como DataFrame
 
+        rows = table.find_elements(By.CSS_SELECTOR, "tbody tr")
+        mandante_urls = [self.__get_team_row_url(row, "data-home") for row in rows]
+        visitante_urls = [self.__get_team_row_url(row, "data-away") for row in rows]
+
+        # Only trust the per-row URLs if they align 1:1 with pd.read_html's own row
+        # count - if the table has a layout pd.read_html parses differently than the
+        # tbody tr walk here, leaving the URL columns off is safer than misaligning them.
+        if len(mandante_urls) == len(df):
+            df["Mandante URL"] = mandante_urls
+            df["Visitante URL"] = visitante_urls
+
         return df
+
+    def __get_team_row_url(self, row: WebElement, td_class: str) -> Optional[str]:
+        try:
+            return row.find_element(By.CSS_SELECTOR, f"td.{td_class} a").get_attribute("href")
+        except Exception:
+            return None
     
     def __scrape_games(self, all_games_url: pd.DataFrame):        
         all_games_url = pd.concat([all_games_url, self.__scrape_homeaway_table()], ignore_index=True)

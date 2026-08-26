@@ -15,7 +15,7 @@ from PIL import Image
 def get_dominant_color(image_url: str, k: int = 3, exclude_white: bool = True, tolerance: int = 30):
     def _load_image(image_url: str) -> np.ndarray:
 
-        img = Image.open(requests.get(image_url, stream=True).raw).convert('RGBA')
+        img = Image.open(requests.get(image_url, stream=True, timeout=30).raw).convert('RGBA')
         img_array = np.array(img)
 
         return img_array

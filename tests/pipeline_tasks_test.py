@@ -56,7 +56,7 @@ class TestMergeAndPreprocess:
         result_df = pd.read_csv(output_path)
 
         assert len(result_df) == 2
-        assert set(result_df["Mandante"]) | set(result_df["Visitante"]) == {"Sada Cruzeiro/Galo FA", "Time B"}
+        assert set(result_df["Mandante"]) | set(result_df["Visitante"]) == {"Galo FA", "Time B"}
 
 
 class TestCheckUnresolvedTeams:
