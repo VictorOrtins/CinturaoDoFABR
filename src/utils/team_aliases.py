@@ -27,6 +27,29 @@
 #    separate opponents, not one team pretending to be two). Several candidate merges
 #    surfaced by Victor's review failed exactly this check and were deliberately left
 #    unaliased - see the "explicitly NOT merged" note at the bottom of this file.
+
+import re
+from typing import Optional
+
+_SLUG_RE = re.compile(r"/(?:times|equipe)/([^/]+)/?$")
+
+
+def extract_team_slug(url: Optional[str]) -> Optional[str]:
+    """A team-page URL's slug is a stable ID that survives a display-name change,
+    unlike the name itself - shared by src/pipeline/audit_team_aliases.py's raw-label
+    grouping and src/pipeline/team_tasks.py's Estado/Regiao carry-forward, so both rely
+    on the exact same notion of "same team page"."""
+    if not isinstance(url, str):
+        return None
+    match = _SLUG_RE.search(url)
+    if match:
+        return match.group(1)
+    # Fallback for any URL that doesn't match the times/equipe pattern - last
+    # non-empty path segment, so a shape we haven't seen yet doesn't just vanish.
+    parts = [p for p in url.rstrip("/").split("/") if p]
+    return parts[-1] if parts else None
+
+
 TEAM_NAME_ALIASES: dict[str, str] = {
     # --- bio-page-name entries (2026-08-23/24) ---
     "Fluminense Imperadores": "Flamengo Imperadores",  # corrected 2026-08-26, was

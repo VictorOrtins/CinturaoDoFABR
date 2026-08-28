@@ -5,6 +5,35 @@ from src.pipeline import tasks
 GAMES_COLUMNS = ["Data", "Mandante", "Hor/Res", "Visitante", "Campo", "Torneio"]
 
 
+class TestMergeIntoAccumulatedGames:
+    def test_returns_fresh_df_unchanged_when_no_accumulated_file_exists(self, tmp_path):
+        fresh_df = pd.DataFrame(
+            [{"Data": "2026-01-01 14:00:00", "Mandante": "A", "Hor/Res": "10 - 07", "Visitante": "B", "Torneio": "t-2026"}],
+            columns=GAMES_COLUMNS[:4] + ["Torneio"],
+        )
+
+        result_df = tasks.merge_into_accumulated_games(tmp_path / "does_not_exist.csv", fresh_df)
+
+        assert len(result_df) == 1
+
+    def test_dedupes_against_existing_accumulated_file(self, tmp_path):
+        accumulated_path = tmp_path / "accumulated.csv"
+        existing_row = {"Data": "2026-01-01 14:00:00", "Mandante": "A", "Hor/Res": "10 - 07", "Visitante": "B", "Campo": None, "Torneio": "t-2026"}
+        pd.DataFrame([existing_row], columns=GAMES_COLUMNS).to_csv(accumulated_path, index=False)
+
+        fresh_df = pd.DataFrame(
+            [
+                existing_row,  # exact duplicate of what's already accumulated -> no-op
+                {"Data": "2026-01-08 14:00:00", "Mandante": "B", "Hor/Res": "14 - 21", "Visitante": "A", "Campo": None, "Torneio": "t-2026"},
+            ],
+            columns=GAMES_COLUMNS,
+        )
+
+        result_df = tasks.merge_into_accumulated_games(accumulated_path, fresh_df)
+
+        assert len(result_df) == 2
+
+
 class TestMergeAndPreprocess:
     def test_merges_dedupes_and_applies_aliases(self, tmp_path):
         raw_dir = tmp_path / "raw"

@@ -1,20 +1,12 @@
 # Data pipeline: scrape → DB → deploy (handoff doc)
 
-**Status**: Phase 0 done (2026-08-23). **Phase 1 is done** (2026-08-24 through
-2026-08-26, branch `create-data-pipeline`) — task functions and CLI are built, the
-bootstrap crawl is complete (all 208 live tournaments), the systematic team-name-alias
-audit flagged as an open question on 2026-08-24 is done (28 splits found via a new
-URL-slug-based method, 25 applied after review, 6 human-proposed merges checked and
-correctly rejected — see "Team name slug audit (2026-08-26)"), and — the item that used
-to be "what's actually left" — **both real seed CSVs have been regenerated for the
-first time this phase**: `backend/seed_data/games.csv` (165→178 rows) and `teams.csv`
-(182→386 rows, plus 5 more aliases found in the process), reconciled and verified (see
-"Backend regeneration (2026-08-26)" at the end of that same section). The known
-team-resolution gap in `CLAUDE.MD` dropped from 20/165 to 4/178. Both test suites green.
-Nothing from this session is committed yet — `git status` on `create-data-pipeline`
-shows the real diff; deciding what to commit is the next actual decision. Phases 1.5-5
-still not started — no Airflow, no Fly.io app, no CI/CD. This is everything a future
-session needs to pick this up cold.
+**Status**: Phase 0 done (2026-08-23). Phase 1 done (2026-08-24 through 2026-08-26) and
+**committed** (`1ff2c4d`, confirmed 2026-08-27 — the "nothing committed yet" framing
+that used to be here was stale). **Phase 1.5 (Airflow DAG) is done** (2026-08-27/28,
+branch `create-data-pipeline`) — see that section below for the full writeup, including
+a real environment mistake worth reading before touching any venv/pip setup on this
+machine again. Phases 2-5 still not started — no backend DB sync, no CI/CD, no Fly.io
+app. This is everything a future session needs to pick this up cold.
 
 ## Why this exists
 
@@ -715,16 +707,144 @@ reconciled - this was the last item blocking the rest of Phase 1 progressing, an
 done. Nothing from this session is committed - `git status` on `create-data-pipeline`
 shows the real diff, same as always.
 
-### Phase 1.5 — Airflow DAG
-- New `dags/update_games_dag.py` — a real Airflow DAG: `PythonOperator` per task from
-  `src/pipeline/tasks.py`, explicit `>>` dependency chain, `retries=2` with backoff on
-  the scrape task (network flakiness against a live third-party site), a final task
-  that surfaces `check_unresolved_teams()`'s output for the PR-body step.
-- Pin an exact `apache-airflow` version + matching constraints file. Verify the
-  dependency-conflict risk described above in a scratch venv before wiring into CI.
-- Local dev loop: `airflow dags test update_games <date>` runs it without any
-  scheduler/webserver — this is also how you'll manually test it before trusting the
-  CI job.
+### Phase 1.5 — Airflow DAG — **DONE (2026-08-27/28)**
+
+**Version/compatibility risk, resolved**: the "check apache-airflow's dependency
+constraints before writing DAG code" risk flagged above turned out to be a non-issue.
+Current latest stable is `apache-airflow==3.3.1` (a major-version jump from the 2.x
+line this doc originally assumed) - verified via its published PyPI metadata that
+`apache-airflow-core` has **zero** hard dependency on `pandas`/`numpy`/`scikit-learn`
+at all (the versions in its `constraints-3.12.txt` are just CI-verified-compatible
+bounds for optional extras, not real requirements), so this project's existing pins
+coexist with it with no resolver conflict - confirmed empirically in the real venv,
+not just reasoned about (`uv pip check` reports 155 compatible packages after
+installing both). One real, if minor, side effect: installing Airflow bumped
+`requests` from the pinned `2.32.3` to `2.34.2` as a transitive dependency - low risk
+(the scrapers only use `requests.get(..., timeout=...)`), but worth knowing the root
+`.venv` now drifts slightly from `requirements.txt`'s exact pin.
+
+**Airflow 3.x architecture risk, resolved**: empirically verified (not just read about)
+that `airflow dags test <dag_id> <date>` still runs one DAG end-to-end in a single
+foreground process on 3.3.1, no scheduler/webserver/API-server daemon needed - the
+"ephemeral CI runner, zero persistent infra" plan from this doc's original 2.x-era
+reasoning still holds. Two adjustments from that mental model: `airflow db migrate`
+(renamed from `db init`, already true since 2.7) must be run once against a fresh
+`AIRFLOW_HOME` before anything else works, and DAGs are written with the modern
+`airflow.sdk` `@dag`/`@task` decorators (TaskFlow style) rather than classic
+`PythonOperator` - a cleaner fit for this pipeline's plain functions anyway, since
+XCom auto-passes each function's return value to the next without manual
+`op_kwargs`/Jinja templating.
+
+**Scope grew to include teams, per Victor's direction**: unlike games, there was no
+existing reusable *task function* for team scraping/reconciliation - the 2026-08-26
+team re-scrape's `Estado`/`Regiao` carry-forward was one-off session code, never
+committed. New `src/pipeline/team_tasks.py` (mirrors `tasks.py`'s style):
+`scrape_teams()` (full REST-discovered scrape, no incremental filter exists for teams
+yet - **known, deliberately-not-fixed limitation**: every run re-scrapes the full
+~430-team roster; not slow enough to block shipping, revisit only if real runtime
+becomes a problem) and `reconcile_teams_csv()` (reuses the existing
+`src/preprocessing/teams/preprocessor.py::Preprocessor` for alias-fixing and
+`Sede`-derived `Estado`/`Regiao`, then adds new logic on top: carries `Estado`/`Regiao`
+forward from the already-committed seed file **by team-page URL slug** - not name, a
+name can drift - wherever the fresh scrape's `Sede` didn't yield one, drops rows with a
+genuinely blank name, and on an alias-induced name collision keeps whichever row has a
+populated `Estado`). The slug-extraction regex previously private to
+`audit_team_aliases.py` was promoted to `src/utils/team_aliases.py::extract_team_slug`
+so both modules share one implementation. New `tests/team_tasks_test.py` (5 cases,
+`tmp_path` fixtures, same style as `pipeline_tasks_test.py`) and thin CLI
+`src/pipeline/update_teams.py` mirroring `update_games.py`'s convention.
+
+New `dags/update_fabr_data_dag.py` - `dag_id="update_fabr_data"`, `schedule=None`
+(recurrence still stays owned by GitHub Actions' cron in Phase 3, unchanged from the
+original plan), a `since_year` DAG `Param` mirroring the games CLI's default. Two
+branches converge at one final task:
+```
+scrape_games(since_year) [retries=2]  → merge_and_preprocess → run_cinturao → regenerate_seed_csv ─┐
+                                                                                                     ├─→ check_unresolved_teams
+scrape_teams [retries=2]  → reconcile_teams_csv ────────────────────────────────────────────────────┘
+```
+`check_unresolved_teams` takes no XCom input (it reads the two seed files directly) and
+is wired with a plain `>>` from both terminal tasks rather than passing their results
+as unused arguments - **a real gotcha hit here**: passing a `None`-returning task's
+result as an argument makes the downstream task try to XCom-pull a value that
+TaskFlow never pushed (Airflow skips pushing a `return_value` XCom when a task returns
+exactly `None`), producing a benign but noisy `ERROR`-level "XCom not found" log line
+on every run even though the DAG still completes successfully. Plain `>>` (structural
+ordering only, no XCom involved) is the correct idiom for a value-less "wait for"
+dependency - fixed and confirmed the graph shape/dependencies are unchanged via
+`tests/dags_test.py`'s `DagBag` assertion. New `tests/dags_test.py`: the standard
+`DagBag` smoke test (zero import errors, expected task-id set).
+
+**A real environment mistake happened during setup, worth flagging for next time**:
+the plan was to `uv venv` a separate `.venv-airflow` to keep Airflow's ~100+
+transitive packages out of the root `.venv`. `uv venv` doesn't install a `pip` binary
+inside the venv it creates - and this machine's shell activates a conda environment
+(`liat`, an unrelated other project) by default in every new terminal. Running
+`source .venv-airflow/bin/activate && pip install ...` didn't actually target
+`.venv-airflow` at all - with no `pip` binary there to shadow conda's, the bare `pip`
+command resolved to whatever was already on `PATH`, silently installing
+`apache-airflow==3.3.1` and this project's `requirements.txt` into `liat` instead
+(135 packages touched, confirmed via dist-info timestamps; at least one confirmed
+clobber of a conda-tracked package, `packaging` 25.0→26.3, with conda's own metadata
+left stale/inconsistent). Caught by checking `pip show apache-airflow`'s `Location`
+after the install "succeeded" silently in the wrong place. Per Victor's direction:
+**don't create a separate venv at all** - Airflow now lives in this project's existing
+root `.venv` (confirmed zero conflict, so there was no need for isolation in the first
+place). **Lesson for next time**: always install with an explicit interpreter path
+(`uv pip install --python <path-to-venv>/bin/python ...`) rather than
+`source activate && pip install` - the former can't silently resolve to the wrong
+environment regardless of what's already active on `PATH`.
+
+**Verified end-to-end with a real run, not just a smoke test**: `airflow dags test
+update_fabr_data 2026-08-28` (after `export AIRFLOW_HOME=<repo>/.airflow-home`,
+`airflow db migrate` once, and `AIRFLOW__CORE__DAGS_FOLDER=<repo>/dags`) completed
+`state=success` end-to-end - a genuine incremental games scrape plus a genuine full
+~430-team re-scrape, ~25 minutes total. Data outcome, categorized rather than
+blind-trusted (same pattern as every prior diff review in this doc):
+`backend/seed_data/games.csv` unchanged (no new games since the last regen - a
+real, correct no-op, not a bug); `teams.csv` net +2 rows (`Boa Vista Falcons`,
+`Curitiba Predadores` - genuinely new to the full REST-discovered roster), the rest
+of the diff being in-place refinements: a stale `Sede == "s"` placeholder cleaned to
+blank (pre-existing `Preprocessor.__fix_sede` logic, not new), minor per-team color
+jitter from k-means non-determinism on independent re-scrapes of the same logo image,
+and one `Estado`/`Regiao` correction (`Guarulhos Rhynos`, previously blank in the
+committed file despite `Sede` already being populated there too). Unresolved-team set
+unchanged (`Botafogo Reptiles`, `Itapema White Sharks`, `São José WSI` - the same
+already-known gap, not a new one). Both root-level (17/17) and backend (90/90) test
+suites green after all of this.
+
+**Raw-storage growth flaw found and fixed the same session (2026-08-28), via Victor's
+own questioning of the design, not discovered proactively**: the "new timestamped
+file every run, never overwrite" convention (established in Phase 1 for games,
+initially copied as-is for teams above) does not scale for a *recurring* job. For
+games, `since_year` covers a rolling ~1-2 year window, not "since the last run" - a
+weekly cron would commit a ~300KB mostly-duplicate copy of that same window every
+week, forever (~15MB/year of pure redundant growth, extrapolated from this session's
+real 299KB run, with git never reclaiming old blobs). For teams the problem is worse
+in degree (a full ~430-team re-scrape, not just a windowed one) though the same in
+kind. Fixed without touching the original Phase 1 `scrape_recent_games` (still used
+by `update_games.py`'s manual/occasional CLI workflow, left alone on purpose):
+- New `tasks.py::scrape_recent_games_accumulated` (used only by the DAG) merges each
+  fresh scrape into one growing file, `data/raw/games/games_accumulated.csv`, deduped
+  by the same key `merge_and_preprocess` already uses downstream - storage now grows
+  proportionally to genuinely new games found, not to run frequency. The merge/dedupe
+  step is split into a pure, tested helper (`merge_into_accumulated_games`,
+  `tests/pipeline_tasks_test.py`) since the scrape itself isn't reasonably testable
+  without mocking Selenium (same reason `scrape_recent_games` itself has never had a
+  test). The pre-existing `games_bootstrap.csv`/historical delta files are untouched
+  and still get concatenated in by `merge_and_preprocess`'s directory scan, so no
+  historical coverage is lost by the new file existing alongside them.
+- `team_tasks.py::scrape_teams` (new code from this same session, not Phase 1 - edited
+  directly rather than forked) now overwrites one fixed `data/raw/teams/
+  teams_latest.csv` every run instead of writing a new timestamped file, since a fresh
+  full snapshot is all `reconcile_teams_csv` ever needs - no merge/dedupe logic
+  required here, unlike games.
+- This session's own real scrape outputs were renamed into the new convention
+  (`games_20260828T002437Z.csv` → `games_accumulated.csv`,
+  `teams_20260828T003207Z.csv` → `teams_latest.csv`) rather than re-scraped.
+  `data/raw/teams/teams_bootstrap.csv` (from the 2026-08-26 session, never committed,
+  genuinely unreferenced by any code path once `scrape_teams` stopped writing
+  timestamped files) was deleted per Victor's direction (2026-08-28).
 
 ### Phase 2 — Backend DB sync (replace seed-once with real sync)
 Independent of the orchestrator choice — do this regardless of how Phase 1/1.5 shake out.
@@ -835,30 +955,38 @@ understood, not chosen by default.
   (won't reliably emulate `setup-chrome` + real outbound requests to `salaooval.com.br`).
 
 ## Open questions for the next session
-- Exact `apache-airflow` version to pin, and whether its dependency constraints
-  conflict with `requirements.txt`'s existing pins (`pandas`, `numpy`, `scikit-learn`)
-  — check this **first**, before writing any DAG code, since it could force isolating
-  Airflow into its own install step.
-- Confirm cron cadence (weekly vs. some other interval) and exact day/time.
-- Whether team scraping (`src/scrapping/scrape_teams/`) gets wired into the same
-  incremental pipeline now, or stays out of scope for this first pass (games-only).
+- ~~Exact `apache-airflow` version to pin...~~ **Resolved 2026-08-27**: `3.3.1`, zero
+  conflict with `pandas`/`numpy`/`scikit-learn`. See Phase 1.5 above.
+- ~~Whether team scraping gets wired into the same incremental pipeline now...~~
+  **Resolved 2026-08-27**: yes, per Victor's direction — see Phase 1.5 above.
+- Confirm cron cadence (weekly vs. some other interval) and exact day/time — still
+  open, needed for Phase 3.
 - Confirm `main` is really the intended production/deploy-triggering branch (current
-  working branch is `update-design`; `main` is the repo's documented default).
+  working branch is `create-data-pipeline`; `main` is the repo's documented default) —
+  still open, needed for Phase 4.
 
 ## Critical files (once implementation starts)
-- `src/pipeline/tasks.py`, `src/pipeline/update_games.py` (new) — task functions +
-  CLI entrypoint
-- `dags/update_games_dag.py` (new) — Airflow DAG wrapping the same task functions
+- `src/pipeline/tasks.py`, `src/pipeline/update_games.py` — games task functions + CLI
+- `src/pipeline/team_tasks.py`, `src/pipeline/update_teams.py` (new, 2026-08-27) —
+  team task functions + CLI, same convention as the games side
+- `dags/update_fabr_data_dag.py` (new, 2026-08-27) — Airflow DAG wrapping both
+  `tasks.py` and `team_tasks.py`'s functions, two branches converging at
+  `check_unresolved_teams`
 - `src/scrapping/scrape_games/get_urls.py` — add `filter_urls_by_year`
 - `src/utils/team_aliases.py` — consolidated alias source of truth; also documents,
   in a trailing comment block, the cross-slug merges that were checked and rejected —
-  read it before adding a new alias, not just before reading the dict
+  read it before adding a new alias, not just before reading the dict; also now home
+  to `extract_team_slug()`, shared by `audit_team_aliases.py` and `team_tasks.py`
 - `src/pipeline/audit_team_aliases.py` (new, 2026-08-26) — re-runnable slug-based
   audit for finding new team-name splits; run before trusting name resolution after
   any future re-scrape
+- `src/utils/utils.py::get_dominant_color` (fixed 2026-08-27) — now excludes near-black
+  pixels (not just near-white) and weights k-means cluster choice by saturation, with a
+  fallback for genuinely monochrome-black logos; `src/pipeline/recompute_team_colors.py`
+  (new) re-applies it to already-scraped teams without a full re-scrape
 - `backend/app/seed.py` — replace `seed_if_empty` with `sync_from_csv`
 - `backend/app/models.py` — composite unique index on `Game`
 - `backend/app/main.py`, `backend/tests/conftest.py` — swap seed call
 - `.github/workflows/scrape-and-pr.yml`, `.github/workflows/deploy.yml` (new)
 - `backend/fly.toml`, `frontend/fly.toml` (new)
-- `.gitignore` — allowlist `data/raw/games/*.csv`
+- `.gitignore` — allowlists `data/raw/games/*.csv` and (2026-08-27) `data/raw/teams/*.csv`

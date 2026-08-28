@@ -5,10 +5,12 @@ __pycache__/*
 *.csv
 !backend/seed_data/*.csv
 !data/raw/games/*.csv
+!data/raw/teams/*.csv
 
 *.env
 
 .venv/
+.airflow-home/
 backend/.venv/
 backend/data/
 

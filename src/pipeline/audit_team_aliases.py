@@ -44,29 +44,14 @@ wrong before being applied).
 
 import argparse
 import json
-import re
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 
-from src.utils.team_aliases import TEAM_NAME_ALIASES
+from src.utils.team_aliases import TEAM_NAME_ALIASES, extract_team_slug
 
 RAW_GAMES_DIR = Path("data/raw/games")
-
-_SLUG_RE = re.compile(r"/(?:times|equipe)/([^/]+)/?$")
-
-
-def _extract_slug(url: Optional[str]) -> Optional[str]:
-    if not isinstance(url, str):
-        return None
-    match = _SLUG_RE.search(url)
-    if match:
-        return match.group(1)
-    # Fallback for any URL that doesn't match the times/equipe pattern - last
-    # non-empty path segment, so a shape we haven't seen yet doesn't just vanish.
-    parts = [p for p in url.rstrip("/").split("/") if p]
-    return parts[-1] if parts else None
 
 
 def _read_raw_games(raw_dir: Path) -> pd.DataFrame:
@@ -88,7 +73,7 @@ def find_split_teams(raw_dir: Path = RAW_GAMES_DIR) -> dict:
         columns={"Visitante": "Label", "Visitante URL": "URL"}
     )
     long_df = pd.concat([home, away], ignore_index=True)
-    long_df["Slug"] = long_df["URL"].apply(_extract_slug)
+    long_df["Slug"] = long_df["URL"].apply(extract_team_slug)
     long_df["Data_parsed"] = pd.to_datetime(long_df["Data"], errors="coerce")
 
     with_slug = long_df.dropna(subset=["Slug"])
