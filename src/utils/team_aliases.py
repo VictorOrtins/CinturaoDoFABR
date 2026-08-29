@@ -113,6 +113,12 @@ TEAM_NAME_ALIASES: dict[str, str] = {
     "HP Desenvolvimento": "Paraná HP",
     "Armada FA": "Porto Alegre Pumpkins",
     "Armada Lions": "Porto Alegre Pumpkins",
+
+    # --- found via the Phase 3 real-run unresolved-teams review (2026-08-29),
+    # confirmed by Victor: the salaooval.com.br page for "São José WSI" now
+    # redirects to Istepôs FA's page. No head-to-head games found between them
+    # in the raw data, so unlike Itapema White Sharks below, this merge is safe. ---
+    "São José WSI": "Istepôs FA",
 }
 
 # Explicitly NOT merged, despite Victor identifying them as real predecessor
@@ -136,3 +142,7 @@ TEAM_NAME_ALIASES: dict[str, str] = {
 #     Porto Alegre Pumpkins/Armada FA/Armada Lions, despite using similar naming - 3
 #     games between them, 2016-2017. Two different site slugs (armada-lions,
 #     porto-alegre-pumpkins), two different teams.
+#   - Itapema White Sharks (predecessor of Istepôs FA; its salaooval.com.br page
+#     now redirects there, found during the Phase 3 real-run unresolved-teams
+#     review, 2026-08-29) - 5 games against Istepôs FA, 2012-2015. Confirmed by
+#     Victor: keep separate despite the redirect, same reasoning as the pairs above.
