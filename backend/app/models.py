@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,6 +21,18 @@ class Team(Base):
 
 class Game(Base):
     __tablename__ = "games"
+    __table_args__ = (
+        # Natural key for sync upserts. Score is deliberately excluded: a
+        # corrected score on an already-synced game should update the row, not
+        # be treated as a new one (see docs/DATA_PIPELINE.md's Phase 1 note).
+        UniqueConstraint(
+            "date",
+            "home_team_id",
+            "away_team_id",
+            "tournament",
+            name="uq_game_identity",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[datetime.datetime]

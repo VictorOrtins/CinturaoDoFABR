@@ -1,5 +1,5 @@
-from get_urls import TournamentUrlsScrapper
-from scrapper import GamesScrapper
+from src.scrapping.scrape_games.get_urls import TournamentUrlsScrapper
+from src.scrapping.scrape_games.scrapper import GamesScrapper
 
 
 if __name__ == '__main__':

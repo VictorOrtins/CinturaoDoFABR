@@ -5,17 +5,10 @@ name: Scrape and open data PR
 # docs/DATA_PIPELINE.md's "The Airflow decision, explained" section for why).
 # Never touches production directly: it only opens a PR with the regenerated
 # data for human review. No production secrets are used here.
-#
-# NOTE: the `schedule` trigger is deliberately not present on this main-branch
-# copy yet. GitHub only fires `schedule:` using the default branch's own tree,
-# and `main` doesn't have dags/, src/pipeline/, or the rest of the pipeline
-# code this workflow calls (still on create-data-pipeline). This dispatch-only
-# copy exists purely so GitHub registers the workflow_dispatch trigger, which
-# requires the file to exist on the default branch - it's not meant to be run
-# from main's own tree. Restore `schedule:` when create-data-pipeline merges
-# for real. See docs/DATA_PIPELINE.md Phase 3.
 
 on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
   workflow_dispatch:
 
 permissions:
@@ -33,8 +26,22 @@ jobs:
           python-version: "3.12"
 
       - uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
         with:
           chrome-version: stable
+          install-chromedriver: true
+
+      - name: Export Chrome/chromedriver paths
+        # webdriver_manager can't see browser-actions/setup-chrome's non-standard
+        # install path, so it falls back to fetching "latest" chromedriver - which
+        # drifted a full major version behind the "stable" Chrome actually installed
+        # here and made Chrome refuse to start (confirmed via a real failed run,
+        # see docs/DATA_PIPELINE.md Phase 3). Passing both paths explicitly skips
+        # that guesswork; src/scrapping/*/scrapper.py falls back to webdriver_manager
+        # when these env vars are unset, so local dev is unaffected.
+        run: |
+          echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=${{ steps.setup-chrome.outputs.chromedriver-path }}" >> "$GITHUB_ENV"
 
       - name: Install pipeline + Airflow dependencies
         # Two separate installs, not combined - installing both in one `pip install`

@@ -2,6 +2,8 @@ import os
 
 import pandas as pd
 
+from src.utils.team_aliases import TEAM_NAME_ALIASES
+
 
 class Preprocessor:
     def __init__(self):
@@ -32,6 +34,8 @@ class Preprocessor:
         games_df = self.__remove_zero_column(games_df)
 
         games_df = self.__remove_temporada_column(games_df)
+
+        games_df = self.__drop_unused_columns(games_df)
 
         games_df = self.__remove_duplicate_games(games_df)
 
@@ -64,7 +68,21 @@ class Preprocessor:
 
         return games_df
 
+    def __drop_unused_columns(self, games_df: pd.DataFrame):
+        # 'Liga' (Superliga's division/phase label) and 'Unnamed: 6' (an artifact of
+        # pd.read_html on that same layout) ride along from the raw scrape but aren't
+        # used anywhere downstream - unlike __remove_zero_column/__remove_temporada_column,
+        # this must not drop rows just because they have a real 'Liga' value.
+        # 'Mandante URL'/'Visitante URL' (added 2026-08-26 for the team-name slug
+        # audit, see docs/DATA_PIPELINE.md) are raw-data provenance, not something the
+        # backend schema expects - keep them on data/raw/*, drop before the seed CSV.
+        unused_columns = [column for column in ['Liga', 'Unnamed: 6', 'Mandante URL', 'Visitante URL'] if column in games_df.columns]
+        return games_df.drop(columns=unused_columns)
+
     def __remove_duplicate_games(self, games_df: pd.DataFrame):
+        # Known limitation: 'Hor/Res' (the score) is part of the key, so a later-
+        # corrected score on an already-scraped game is treated as a new row instead
+        # of an update to the existing one. Out of scope to fix here.
         games_df = games_df.drop_duplicates(subset=['Data', 'Mandante', 'Hor/Res', 'Visitante', 'Torneio'])
         return games_df
           
@@ -139,32 +157,11 @@ class Preprocessor:
         return games_df
     
     def __fix_teams_names(self, games_df: pd.DataFrame):
-        games_df['Mandante'] = games_df['Mandante'].apply(lambda x: self.__fix_names(x))
-        games_df['Visitante'] = games_df['Visitante'].apply(lambda x: self.__fix_names(x))
+        games_df['Mandante'] = games_df['Mandante'].replace(TEAM_NAME_ALIASES)
+        games_df['Visitante'] = games_df['Visitante'].replace(TEAM_NAME_ALIASES)
 
         return games_df
-    
-    def __fix_names(self, team_name: str):
-        if team_name == 'Sada Cruzeiro' or team_name == 'Galo FA':
-            return 'Sada Cruzeiro/Galo FA'
-        
-        if team_name == 'Fluminense Imperadores':
-            return 'Fluminense FA'
-        
-        if team_name == 'Foz Black Sharks':
-            return 'Foz do Iguaçu Black Sharks'
-        
-        if team_name == 'Joinville Gladiators':
-            return 'JEC Gladiators'
-        
-        if team_name == 'Juventude FA':
-            return 'União da Serræ/Juventude FA'
-        
-        if team_name == 'Vila Velha Tritões':
-            return 'Tritões FA'
-        
-        return team_name
-    
+
     def __fix_competions_names(self, games_df: pd.DataFrame):
         games_df['Torneio'] = games_df['Torneio'].apply(lambda x: self.__fix_competions_names_row(x))
         return games_df

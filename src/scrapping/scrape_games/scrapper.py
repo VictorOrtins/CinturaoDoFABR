@@ -1,7 +1,6 @@
-from io import StringIO
 import os
-import sys
-from typing import List
+from io import StringIO
+from typing import List, Optional
 
 import pandas as pd
 
@@ -13,15 +12,18 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
-
 from src.utils.utils import is_datetime
 
 
 class GamesScrapper:
-    def __init__(self, urls_to_scrape: List[str], save_path, wait_time=30):
+    def __init__(self, urls_to_scrape: List[str], save_path, wait_time=30, optional_element_wait_time=3):
         self.urls_to_scrape = urls_to_scrape
         self.wait_time = wait_time
+        # Pagination buttons / result cards are rendered server-side, not loaded async:
+        # if they're going to appear at all, they appear near-instantly. A short wait
+        # here still catches real content but avoids paying the full wait_time on every
+        # tab that simply doesn't use that layout (confirmed most tabs don't).
+        self.optional_element_wait_time = optional_element_wait_time
         self.save_path = save_path
 
         self.driver = None
@@ -30,8 +32,26 @@ class GamesScrapper:
     def __init_driver(self):
         options = webdriver.ChromeOptions()
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
+        chrome_path = os.environ.get("CHROME_PATH")
+        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+
+        if chrome_path:
+            options.binary_location = chrome_path
+
+        if os.environ.get("CI"):
+            # GitHub Actions runners have no display server - Chrome exits
+            # immediately on launch without --headless (confirmed via a real
+            # failed run, see docs/DATA_PIPELINE.md Phase 3). --no-sandbox and
+            # --disable-dev-shm-usage avoid separate known CI crashes (limited
+            # /dev/shm, sandbox init failing without a full user namespace).
+            options.add_argument("--headless=new")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+
         driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), options=options
+            service=Service(chromedriver_path or ChromeDriverManager().install()),
+            options=options,
         )
 
         self.driver = driver
@@ -54,10 +74,6 @@ class GamesScrapper:
                 continue
 
             tournament_tabs = self.__find_tournament_tabs()
-
-            if tournament_tabs is None:
-                print("Foram encontrados 0 jogos na URL")
-                continue
 
             all_games_url = self.__scrape_tournament(tournament_tabs, url)
 
@@ -110,43 +126,67 @@ class GamesScrapper:
         
         return True
     
-    def __find_elements(self, by: By, pattern: str) -> List[WebElement]:
+    def __find_elements(self, by: By, pattern: str, timeout: Optional[int] = None) -> List[WebElement]:
         try:
-            WebDriverWait(self.driver, self.wait_time).until(
+            WebDriverWait(self.driver, timeout if timeout is not None else self.wait_time).until(
                 EC.presence_of_element_located((by, pattern))
             )
         except Exception:
             return None
-        
+
         elements = self.driver.find_elements(by, pattern)
 
         return elements
 
-    def __scrape_tournament(self, tournament_tabs: List[WebElement], url: str) -> pd.DataFrame:
+    def __scrape_tournament(self, tournament_tabs: Optional[List[WebElement]], url: str) -> pd.DataFrame:
+        if tournament_tabs is None:
+            # Newer tournament pages on the source site (post block-editor migration,
+            # e.g. campeonato-pernambucano-2025, spfl-2026) render the same games
+            # tables directly on the page with no vc_tta-tabs wrapper at all -
+            # __find_tournament_tabs returns None for these. Used to mean the page was
+            # silently skipped entirely even though the data is right there; scrape the
+            # already-loaded page once instead, same as a single found tab would be.
+            return self.__scrape_current_tab()
+
         all_games_url = pd.DataFrame()
 
         tournament_tabs_text = [tab.get_attribute('textContent') for tab in tournament_tabs]
-        
+
         for tab_text in tournament_tabs_text:
             scrape_url = f'{url}#{tab_text.lower()}'
-        
+
             if not self.__get_tab_url(scrape_url):
                 continue
 
-            buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button")
+            all_games_url = pd.concat([all_games_url, self.__scrape_current_tab()], ignore_index=True)
+            all_games_url = all_games_url.drop_duplicates(subset=["Data", "Mandante", "Hor/Res", "Visitante"])
 
-            if buttons is not None:
-                for button in buttons:
-                    
-                    if not self.__button_clicked(button):
-                        continue
-                    
-                    all_games_url = self.__scrape_games(all_games_url)
-            else:
+        return all_games_url
+
+    def __scrape_current_tab(self) -> pd.DataFrame:
+        # Always scrape whatever's already visible first, unconditionally. Pagination
+        # buttons can exist in the DOM but be non-interactable (confirmed via
+        # is_displayed()==False, e.g. campeonato-brasileiro-2012/2013,
+        # campeonato-mato-grossense-2020, campeonato-catarinense-2020 - the underlying
+        # DataTable's data already fits on a single page, so the plugin renders but
+        # hides its own pagination controls). Clicking them then throws
+        # ElementNotInteractableException on every button, which __button_clicked
+        # silently swallows - previously that meant __scrape_games was never called at
+        # all for that tab, silently losing already-visible data. Scraping current
+        # state first, then trying to paginate for any additional pages, fixes that
+        # without changing behavior for tournaments that do have real pagination.
+        all_games_url = self.__scrape_games(pd.DataFrame())
+
+        buttons = self.__find_elements(By.CSS_SELECTOR, ".paginate_button", timeout=self.optional_element_wait_time)
+
+        if buttons is not None:
+            for button in buttons:
+
+                if not self.__button_clicked(button):
+                    continue
+
                 all_games_url = self.__scrape_games(all_games_url)
 
-            all_games_url = all_games_url.drop_duplicates(subset=["Data", "Mandante", "Hor/Res", "Visitante"])
-            
         return all_games_url
 
     def __scrape_homeaway_table(self) -> pd.DataFrame:
@@ -166,7 +206,7 @@ class GamesScrapper:
         all_games_cards = pd.DataFrame()
 
         try:
-            WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
+            WebDriverWait(self.driver, self.optional_element_wait_time).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "time.sp-event-date")))
         except Exception:
             return None
         
@@ -190,8 +230,20 @@ class GamesScrapper:
 
         date = row.find_element(By.CLASS_NAME, "sp-event-date").get_attribute('datetime')
         teams = row.find_elements(By.CSS_SELECTOR, "span.team-logo")
+
+        if len(teams) < 2:
+            # Some rows on the source site have one team's logo widget left unset
+            # (a genuine site content gap, confirmed via manual DOM inspection on
+            # sao-paulo-football-league-2022 - not a scrape-timing issue). The row's
+            # structured markup can't resolve both team names, so skip it rather than
+            # crash the whole tournament scrape.
+            print(f"Linha de jogo em {date} sem os dois times cadastrados (encontrados: {len(teams)}), pulando.")
+            return pd.DataFrame()
+
         mandante = teams[0].get_attribute("title")
         visitante = teams[1].get_attribute("title")
+        mandante_url = self.__get_team_logo_url(teams[0])
+        visitante_url = self.__get_team_logo_url(teams[1])
 
         WebDriverWait(self.driver, self.wait_time).until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "h5.sp-event-results span.sp-result")))
 
@@ -212,16 +264,46 @@ class GamesScrapper:
             "Data": date,
             "Mandante": mandante,
             "Hor/Res": f"{pontos_mandante} - {pontos_visitante}",
-            "Visitante": visitante
+            "Visitante": visitante,
+            "Mandante URL": mandante_url,
+            "Visitante URL": visitante_url,
         }
 
         return pd.DataFrame([game_data])
+
+    def __get_team_logo_url(self, team_logo: WebElement) -> Optional[str]:
+        # The team-page link sits differently depending on layout: the card layout
+        # (this method) nests an <a href> *inside* span.team-logo, while the
+        # homeaway-table layout (__get_team_row_url) wraps the span in a parent <a>
+        # instead. Both point at the same kind of team page URL, just structured
+        # differently - never assume one shape for both layouts.
+        try:
+            return team_logo.find_element(By.TAG_NAME, "a").get_attribute("href")
+        except Exception:
+            return None
 
     def __get_table_df(self, table: WebElement) -> pd.DataFrame:
         html_da_tabela = table.get_attribute("outerHTML")
         df = pd.read_html(StringIO(html_da_tabela))[0]  # Extrai a tabela como DataFrame
 
+        rows = table.find_elements(By.CSS_SELECTOR, "tbody tr")
+        mandante_urls = [self.__get_team_row_url(row, "data-home") for row in rows]
+        visitante_urls = [self.__get_team_row_url(row, "data-away") for row in rows]
+
+        # Only trust the per-row URLs if they align 1:1 with pd.read_html's own row
+        # count - if the table has a layout pd.read_html parses differently than the
+        # tbody tr walk here, leaving the URL columns off is safer than misaligning them.
+        if len(mandante_urls) == len(df):
+            df["Mandante URL"] = mandante_urls
+            df["Visitante URL"] = visitante_urls
+
         return df
+
+    def __get_team_row_url(self, row: WebElement, td_class: str) -> Optional[str]:
+        try:
+            return row.find_element(By.CSS_SELECTOR, f"td.{td_class} a").get_attribute("href")
+        except Exception:
+            return None
     
     def __scrape_games(self, all_games_url: pd.DataFrame):        
         all_games_url = pd.concat([all_games_url, self.__scrape_homeaway_table()], ignore_index=True)

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "API for Cinturão do FABR"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.19.1",
     "fastapi>=0.141.1",
     "litellm>=1.95.0",
     "pydantic>=2.13.4",
@@ -22,6 +23,9 @@ dev = [
 
 [tool.ruff]
 target-version = "py312"
+# Alembic generates these; their boilerplate style isn't ours to fix on every
+# migration.
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

@@ -1,20 +1,27 @@
 from contextlib import asynccontextmanager
 
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
-from app.database import Base, SessionLocal, engine
+from alembic import command
+from app.config import BACKEND_DIR, settings
+from app.database import SessionLocal
 from app.routers import assistant, cinturao, games, health, stats, teams
-from app.seed import seed_if_empty
+from app.seed import sync_from_csv
+
+
+def run_migrations() -> None:
+    alembic_cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    command.upgrade(alembic_cfg, "head")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    run_migrations()
     db = SessionLocal()
     try:
-        seed_if_empty(db)
+        sync_from_csv(db)
     finally:
         db.close()
     yield

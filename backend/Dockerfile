@@ -9,6 +9,8 @@ RUN uv sync --frozen --no-dev
 
 COPY app ./app
 COPY seed_data ./seed_data
+COPY alembic.ini ./alembic.ini
+COPY alembic ./alembic
 
 # Match the default UID/GID on most single-user Linux dev machines, so the
 # bind-mounted ./backend/data volume stays owned by the host user instead of root.

@@ -1,0 +1,11 @@
+# Install with:
+#   uv pip install --python .venv/bin/python -r requirements-airflow.txt --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.12.txt"
+# (or plain `pip install`, but always with an explicit --python/venv target - never
+# `source .venv/bin/activate && pip install`, see feedback_venv_installs memory for why)
+#
+# Confirmed 2026-08-27/28: apache-airflow==3.3.1's core package has zero hard
+# dependency on pandas/numpy/scikit-learn, so it coexists with requirements.txt's
+# pins with no resolver conflict. One minor side effect: it bumps `requests` past
+# requirements.txt's 2.32.3 pin as a transitive dependency - low risk (scrapers only
+# use requests.get(..., timeout=...)), not worth fighting.
+apache-airflow==3.3.1

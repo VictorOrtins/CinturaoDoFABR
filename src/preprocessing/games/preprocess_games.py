@@ -1,6 +1,6 @@
 import os
 
-from preprocessor import Preprocessor
+from src.preprocessing.games.preprocessor import Preprocessor
 
 if __name__ == '__main__':
     preprocessor = Preprocessor()

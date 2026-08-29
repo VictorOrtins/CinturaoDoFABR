@@ -1,6 +1,4 @@
 import os
-import sys
-
 from typing import List
 
 import pandas as pd
@@ -12,8 +10,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 from src.utils.utils import get_dominant_color
 
@@ -29,8 +25,26 @@ class TeamsScrapper:
     def __init_driver(self):
         options = webdriver.ChromeOptions()
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
+        chrome_path = os.environ.get("CHROME_PATH")
+        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+
+        if chrome_path:
+            options.binary_location = chrome_path
+
+        if os.environ.get("CI"):
+            # GitHub Actions runners have no display server - Chrome exits
+            # immediately on launch without --headless (confirmed via a real
+            # failed run, see docs/DATA_PIPELINE.md Phase 3). --no-sandbox and
+            # --disable-dev-shm-usage avoid separate known CI crashes (limited
+            # /dev/shm, sandbox init failing without a full user namespace).
+            options.add_argument("--headless=new")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+
         driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), options=options
+            service=Service(chromedriver_path or ChromeDriverManager().install()),
+            options=options,
         )
 
         self.driver = driver
@@ -90,7 +104,10 @@ class TeamsScrapper:
             team_name = self.driver.find_elements(By.CSS_SELECTOR, "div.wpb_wrapper h1")
 
         
-            team_name = ' '.join([word.get_attribute('textContent').strip() for word in team_name])
+            # Some team pages use a non-breaking space (\xa0) mid-h1 instead of a
+            # regular space - .strip() only trims the ends, so it survives into the
+            # name unless explicitly normalized here.
+            team_name = ' '.join([word.get_attribute('textContent').strip() for word in team_name]).replace('\xa0', ' ')
 
             img_url = self.driver.find_element(By.CSS_SELECTOR, "figure.wpb_wrapper a.vc_single_image-wrapper").get_attribute("href")
             team_sede = self.driver.find_element(By.XPATH, "//p[contains(., 'Sede')]").get_attribute('textContent').split("Sede")[-1].strip().split("\n")[0]
