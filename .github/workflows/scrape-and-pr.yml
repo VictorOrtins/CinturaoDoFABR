@@ -1,0 +1,105 @@
+name: Scrape and open data PR
+
+# Weekly incremental scrape + belt recompute, run via `airflow dags test` (real
+# Airflow DAG code, no persistent scheduler/webserver/metadata Postgres - see
+# docs/DATA_PIPELINE.md's "The Airflow decision, explained" section for why).
+# Never touches production directly: it only opens a PR with the regenerated
+# data for human review. No production secrets are used here.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  scrape-and-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Install pipeline + Airflow dependencies
+        # Two separate installs, not combined - installing both in one `pip install`
+        # with --constraint forces numpy to the constraint file's version (2.5.1),
+        # conflicting with requirements.txt's pin (2.2.1), even though apache-airflow
+        # itself has no real dependency on numpy at all (confirmed in Phase 1.5). A
+        # constraint only binds packages that are actually part of that install's own
+        # dependency graph, so keeping requirements-airflow.txt's install separate
+        # (as its own header comment always specified) avoids the false conflict.
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-airflow.txt \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.12.txt"
+
+      - name: Run update_fabr_data DAG
+        env:
+          AIRFLOW_HOME: ${{ github.workspace }}/.airflow-home
+          AIRFLOW__CORE__DAGS_FOLDER: ${{ github.workspace }}/dags
+          AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+          # dags/update_fabr_data_dag.py does `from src.pipeline import ...` - Airflow
+          # only puts the DAGs folder itself on sys.path, not its parent, so the repo
+          # root has to be added explicitly or the import fails with
+          # ModuleNotFoundError: No module named 'src' (confirmed locally before
+          # trusting this, not assumed).
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          airflow db migrate
+          airflow dags reserialize
+          airflow dags test update_fabr_data "$(date -u +%Y-%m-%d)"
+
+      - name: Check for data changes
+        id: diff
+        run: |
+          if git diff --quiet -- backend/seed_data data/raw; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          {
+            echo "Automated FABR data update from the weekly \`scrape-and-pr\` workflow."
+            echo "Review before merging - merging to \`main\` triggers a redeploy that syncs this data into the live DB."
+            echo
+            echo "### Diff summary"
+            echo '```'
+            git diff --stat -- backend/seed_data data/raw
+            echo '```'
+            echo
+            echo "### Unresolved team names"
+            echo "Games referencing these names get a placeholder team on DB sync instead of being dropped - see docs/DATA_PIPELINE.md's Phase 2 section."
+            echo '```'
+            if [ -s data/raw/unresolved_teams.txt ]; then
+              cat data/raw/unresolved_teams.txt
+            else
+              echo "(none)"
+            fi
+            echo '```'
+          } > pr_body.md
+
+      - name: Open PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: automated FABR data update"
+          title: "Automated FABR data update"
+          body-path: pr_body.md
+          branch: automated-data-update
+          delete-branch: true
+          add-paths: |
+            backend/seed_data/*.csv
+            data/raw/games/*.csv
+            data/raw/teams/*.csv

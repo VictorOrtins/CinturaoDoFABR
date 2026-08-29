@@ -12,6 +12,11 @@ One-time setup (see requirements-airflow.txt for the exact install command):
 Local dev loop (no scheduler/webserver/API-server needed):
     export AIRFLOW_HOME=<repo>/.airflow-home
     export AIRFLOW__CORE__DAGS_FOLDER=<repo>/dags
+    export PYTHONPATH=<repo>                # Airflow only puts the DAGs folder
+                                             # itself on sys.path, not its parent -
+                                             # without this, `from src.pipeline
+                                             # import ...` below fails with
+                                             # ModuleNotFoundError (confirmed).
     airflow db migrate                      # once
     airflow dags reserialize                # registers this DAG in the metadata db
     airflow dags test update_fabr_data <date>

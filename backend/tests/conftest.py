@@ -6,11 +6,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database import Base, get_db, make_engine
 from app.main import app
-from app.seed import seed_if_empty
+from app.seed import sync_from_csv
 
 
 @pytest.fixture
 def db_session() -> Iterator[Session]:
+    # Built straight from the ORM models, not via Alembic - tests only need the
+    # current schema, not migration history.
     engine = make_engine(":memory:")
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -25,7 +27,7 @@ def db_session() -> Iterator[Session]:
 def seeded_db_session(db_session: Session) -> Session:
     from app.config import settings
 
-    seed_if_empty(db_session, settings.seed_data_dir)
+    sync_from_csv(db_session, settings.seed_data_dir)
     return db_session
 
 

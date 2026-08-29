@@ -38,9 +38,6 @@ There are scripts in scripts/ for:
 ```
 scripts/start-linux.sh   # docker compose up --build -d
 scripts/stop-linux.sh    # docker compose down
-scripts/reseed-db.sh     # clear + rebuild + restart backend so it reseeds from
-                          # backend/seed_data/*.csv - see "Database" below for why
-                          # this is a separate script from start-linux.sh
 ```
 
 The backend Dockerfile runs as a non-root `appuser` (fixed UID 1000, matching the default
@@ -84,44 +81,76 @@ themselves rather than trading screenshots back and forth.
 
 ### Database
 
-Backend uses SQLite as a "temporary database" — no separate DB container. On startup,
-if the DB is empty, it's seeded from CSVs committed at `backend/seed_data/` (copied from
-the prototype's `app/data/cinturao/games.csv` and `app/data/teams/teams.csv`). Seeding is
-idempotent — but idempotent means it **only ever seeds an empty DB**, not that it
-re-syncs on every start. `backend/data` is a named Docker volume (see the Gotcha above
-on why it's not a bind mount), so it survives restarts/rebuilds on its own; editing
-`backend/seed_data/*.csv` (e.g. after `src/pipeline`'s `regenerate_seed_csv`, see
-`docs/DATA_PIPELINE.md`) has **no effect on an already-seeded app.db** until that
-volume's copy is explicitly cleared. **Confirmed 2026-08-26**: this bit Victor directly —
-deleting the *local* `backend/data/app.db` file did nothing (it's not the file the
-container actually uses), and even `docker compose down` alone doesn't clear it (down
-doesn't remove volumes by default). Use `scripts/reseed-db.sh` whenever
-`backend/seed_data/*.csv` changes and you want the running app to reflect it — it clears
-the volume's `app.db`, rebuilds the image (so a fresh `COPY seed_data` layer is used
-too, not just the volume), and restarts. This script is the manual stand-in for Phase
-2's `sync_from_csv` (see `docs/DATA_PIPELINE.md`) — once that ships, the backend syncs
-on every startup unconditionally and this script stops being necessary. Tables use
-proper `id` primary keys / foreign keys (the prototype joined `teams`/`games` by exact
-name string match, which is fragile — don't repeat that).
+Backend uses SQLite as a "temporary database" — no separate DB container. Schema is
+managed by **Alembic** (`backend/alembic/`), not `create_all` — `app/main.py`'s
+`lifespan` runs `alembic upgrade head` on every startup before anything else, targeting
+whatever `app/config.py::settings.database_path` points at (`alembic/env.py` reads it
+directly, so alembic and the running app can never target different files). A future
+schema change is a new `uv run alembic revision --autogenerate -m "..."` in `backend/`,
+committed alongside the model change — never hand-edit `alembic_version` or the DB file.
+
+Since Phase 2 of `docs/DATA_PIPELINE.md` (2026-08-28), `app/seed.py::sync_from_csv`
+**upserts** teams/games from `backend/seed_data/*.csv` on every startup, unconditionally
+— not a one-time seed. Teams are matched by `name`, games by a natural key
+(`date`+`home_team_id`+`away_team_id`+`tournament`, enforced by a DB
+`UniqueConstraint` — **score is deliberately excluded from the key**, so a corrected
+score updates the existing row instead of inserting a duplicate). An unresolved team
+name (one that never made it into `teams.csv`) no longer silently drops the game — it
+auto-creates a minimal placeholder `Team` row (name only, other fields `None`) and logs
+a warning, so no game is ever lost; `Phase 1`'s `check_unresolved_teams` report is the
+intended way to notice and properly fix these. `backend/data` is a named Docker volume
+(see the Gotcha above on why it's not a bind mount) — it survives restarts/rebuilds on
+its own, but since sync now runs unconditionally on boot, editing
+`backend/seed_data/*.csv` and redeploying is enough on its own; no separate reseed
+script is needed anymore (the old `scripts/reseed-db.sh`, `sync_from_csv`'s manual
+stand-in, was deleted once this shipped). Tables use proper `id` primary keys / foreign
+keys (the prototype joined `teams`/`games` by exact name string match, which is
+fragile — don't repeat that).
 
 Data is **not** re-scraped live for this foundation work — `src/scrapping/*` hits a live
 third-party site (salaooval.com.br) via Selenium and is slow/fragile; re-running it is
 out of scope unless a future ticket specifically asks for it.
 
-**Known data-quality gap** (much smaller as of 2026-08-26 — see
-`docs/DATA_PIPELINE.md`'s "Team name slug audit" section for the full story):
-`backend/app/seed.py::_seed_games` skips any game where either team name doesn't
-resolve exactly (case-sensitive) against `teams.csv`, logging a warning rather than
-guessing at fuzzy matches (which risks attributing a game to the wrong team). Both seed
-CSVs were regenerated from a full re-scrape plus a systematic team-name alias audit
-(`src/utils/team_aliases.py`, `src/pipeline/audit_team_aliases.py`) — this dropped the
-skip count from 20/165 to **4/178** (`Itapema White Sharks`, `São José WSI` x2,
-`Botafogo Reptiles` — the last confirmed via a live 404, a missing-page problem, not a
-name-mismatch one). Locked in by a regression test in `backend/tests/test_seed.py` so
-future CSV changes are caught instead of silently drifting. The remaining 4 are a good
-target for Phase 2's `sync_from_csv` (see `docs/DATA_PIPELINE.md`), which replaces this
-skip-and-warn behavior with auto-creating a placeholder `Team` row so no game is ever
-silently lost — not done here.
+**Known data-quality gap, now closed by Phase 2 (2026-08-28)**: `backend/seed_data/*.csv`
+still has a handful of team names with no resolvable page on the source site
+(`Itapema White Sharks`, `São José WSI` x2, `Botafogo Reptiles` — the last confirmed via
+a live 404, a missing-page problem, not a name-mismatch one) — but these no longer cause
+lost games; `sync_from_csv` auto-creates a placeholder `Team` for each instead of
+skipping (see above). `backend/tests/test_seed.py` locks in that every row in
+`games.csv` produces a `Game`, replacing the old skip-count regression test.
+
+### Pipeline orchestration (Airflow + GitHub Actions)
+
+`dags/update_fabr_data_dag.py` wraps `src/pipeline/tasks.py` (games) and
+`src/pipeline/team_tasks.py` (teams) in a real Airflow DAG (`dag_id="update_fabr_data"`),
+run via `airflow dags test` rather than a persistent scheduler/webserver — see
+`docs/DATA_PIPELINE.md`'s "The Airflow decision, explained" section for why. Recurrence
+comes from `.github/workflows/scrape-and-pr.yml`'s `schedule: cron` (weekly, Monday
+06:00 UTC), not Airflow's own scheduler; that workflow opens a PR with the regenerated
+data for human review and never touches production directly — merging to `main` is what
+eventually triggers a redeploy (Phase 4, not built yet) that syncs the new data live.
+
+Two gotchas confirmed the hard way while building this — easy to reintroduce if this
+area gets touched again:
+- **The DAG needs the repo root on `PYTHONPATH`**, both locally and in CI. Airflow only
+  puts the DAGs folder itself on `sys.path`, not its parent, so `from src.pipeline
+  import tasks` fails with `ModuleNotFoundError: No module named 'src'` otherwise — see
+  the DAG file's own docstring for the exact local dev-loop commands (`PYTHONPATH`
+  included) and `scrape-and-pr.yml` for the CI equivalent.
+- **Install `requirements.txt` and `requirements-airflow.txt` as two separate `pip`
+  calls — never combined in one command with `--constraint`.** `apache-airflow-core`
+  has no real dependency on `numpy`/`pandas`/`scikit-learn`, but pip's `--constraint`
+  flag force-bounds *any* package named in that install's resolve. Combining both
+  requirement files in one `pip install ... --constraint <airflow's constraints URL>`
+  conflicts `numpy`'s pin (`2.2.1`) against the constraints file's version (`2.5.1`)
+  even though nothing in that install actually needs the constrained one. Confirmed by
+  reproducing the conflict directly, not just reasoned about — see
+  `requirements-airflow.txt`'s own header comment for the exact two-step command.
+
+Full plan, phase-by-phase status, and every bug found while building this out (there
+have been several, each fixed only after being reproduced for real, never just reasoned
+about) live in `docs/DATA_PIPELINE.md` — read it before touching `dags/`,
+`src/pipeline/`, or `.github/workflows/scrape-and-pr.yml`.
 
 ### Old prototype (`app/`)
 
