@@ -8,11 +8,11 @@ a real environment mistake worth reading before touching any venv/pip setup on t
 machine again. **Phase 2 (backend DB sync) is done** (2026-08-28, same branch) — see
 that section below; verified with a real `docker build` + container boot against the
 Compose volume, not just pytest. **Phase 3 (`.github/workflows/scrape-and-pr.yml`) is
-written** (2026-08-28) but **not yet validated with a real run** — it needs a
-`workflow_dispatch` run on GitHub (can't be tested locally, and the doc's own
-verification strategy explicitly rules out `act` for this) before it can be trusted;
-see that section below for what's unverified. Phases 4-5 still not started — no Fly.io
-app. This is everything a future session needs to pick this up cold.
+done, validated with real `workflow_dispatch` runs** (2026-08-29) — three real bugs
+found and fixed (chromedriver version, headless Chrome, repo PR permission), plus two
+real team-data merge decisions; see that section below for the full writeup. Phases 4-5
+still not started — no Fly.io app. This is everything a future session needs to pick
+this up cold.
 
 ## Why this exists
 
@@ -951,7 +951,7 @@ column, say) hasn't been exercised yet, so `render_as_batch`'s SQLite-ALTER hand
 untested against an actual ALTER, only reasoned about. Worth a quick sanity check the
 first time Phase 2's schema actually changes again, rather than assumed safe.
 
-### Phase 3 — GitHub Actions: scheduled scrape + PR — **written, not yet validated (2026-08-28)**
+### Phase 3 — GitHub Actions: scheduled scrape + PR — **DONE (2026-08-29)**
 - New `.github/workflows/scrape-and-pr.yml`: `schedule: cron` (weekly, e.g. Monday
   06:00 UTC) + `workflow_dispatch` for manual runs. Steps: checkout →
   `actions/setup-python` → `browser-actions/setup-chrome` (pin an explicit Chrome
@@ -1020,35 +1020,78 @@ already-set-up root `.venv`) surfaced two real, would-have-failed-on-first-run i
    worth being aware this doc's "verified end-to-end" claim for Phase 1.5 didn't
    actually exercise a from-scratch environment the way this check just did.
 
-**Not done / real risks still not exercised, unlike every other phase in this doc**:
-unlike Phases 1/1.5/2, this one has **not had a full real run** — the two fixes above
-came from reproducing individual commands locally, not from an actual GitHub Actions
-execution, which can't be done without pushing/dispatching against Victor's real
-GitHub repo (a real, visible action, not something to do without his go-ahead; the
-doc's own testing strategy also rules out `act` here, since it won't reliably emulate
-`setup-chrome` + real outbound requests to `salaooval.com.br`). Still unverified until
-a real `workflow_dispatch` run happens:
-- Whether `browser-actions/setup-chrome`'s installed Chrome is actually discoverable by
-  `webdriver-manager` on a stock `ubuntu-latest` runner with no further PATH/env setup —
-  reasoned about from the doc's original plan text, not confirmed empirically the way
-  every other scraper claim in this doc has been (and the two bugs above are a
-  reminder that "reasoned about" has already been wrong twice in this same phase).
-- **A real GitHub constraint worth flagging explicitly**: `schedule:` triggers only
-  fire from the workflow file **as it exists on the repository's default branch**
-  (`main`, confirmed via GitHub's own docs) — merely having this file on
-  `create-data-pipeline` is not enough for the cron to ever run, regardless of Phase
-  4's still-open "is `main` really the deploy branch" question. `workflow_dispatch` has
-  no such restriction and can be run from any branch, so manual validation doesn't need
-  to wait on a merge to `main` — only the recurring cron does.
-- Whether `peter-evans/create-pull-request`'s default branch-diff/PR-update behavior
-  (re-running against an already-open `automated-data-update` PR) does the sane thing
-  (update it) rather than something surprising — not exercised, since no run has
-  happened yet.
+#### Phase 3 real validation (2026-08-29) — DONE
 
-**Next actual step for this phase**: get Victor's go-ahead to push and run
-`workflow_dispatch` for real, watch it end-to-end, and fix whatever the real run
-surfaces (this doc's own established pattern for every prior phase — nothing here has
-been "assumed fine" without a real run yet, and this shouldn't be the exception).
+**The `workflow_dispatch`-requires-default-branch constraint, confirmed real**:
+`gh workflow run` against `create-data-pipeline` 404'd — "workflow not found on the
+default branch" — confirming GitHub only *registers* `workflow_dispatch` (unlike
+`schedule`, which also only *fires* from there) once the file exists on `main`, even
+though the actual run still checks out whatever `--ref` is passed. Fixed by pushing a
+schedule-stripped copy of the workflow to `main` (PR #6) — `schedule:` deliberately
+left off that copy, since `main` doesn't have the pipeline code this workflow calls yet
+and arming the cron there would guarantee a broken Monday run. Restore `schedule:` once
+`create-data-pipeline` merges into `main` for real (see the open question below).
+
+**Three real bugs found and fixed via actual failed runs, not reasoning about it**:
+1. **Chrome/chromedriver version drift.** First real run failed every scrape task with
+   `selenium.common.exceptions.SessionNotCreatedException: Chrome instance exited`.
+   `browser-actions/setup-chrome@v1`'s `stable` channel installed Chrome 152.0.7977.64,
+   but `webdriver_manager`'s `ChromeDriverManager().install()` (in both
+   `src/scrapping/scrape_games/scrapper.py` and `scrape_teams/scrapper.py`) can't see
+   that non-standard install path (`/opt/hostedtoolcache/setup-chrome/...`), so it fell
+   back to fetching "latest" chromedriver — 151.0.7922.138, a full major version behind.
+   Fixed: `install-chromedriver: true` on the `setup-chrome` step (it can install a
+   version-matched driver directly), both paths exported as `CHROME_PATH`/
+   `CHROMEDRIVER_PATH` env vars, both scrapers read them when set and fall back to
+   `ChromeDriverManager()` otherwise (local dev unaffected).
+2. **That alone didn't fix it** — re-running with matched versions failed identically.
+   Root cause was never version skew: GitHub Actions runners have no display server,
+   and neither scraper ever passed `--headless`, so Chrome exited immediately on launch
+   regardless of driver version. Fixed: `--headless=new`, `--no-sandbox`,
+   `--disable-dev-shm-usage` added to both scrapers' `ChromeOptions`, gated on the `CI`
+   env var (set automatically by GitHub Actions) so local interactive scraping is
+   unaffected. This run got all the way through the DAG and produced a real diff.
+3. **Repo setting, not code**: `peter-evans/create-pull-request` failed with `GitHub
+   Actions is not permitted to create or approve pull requests` — off by default on new
+   repos. Fixed via `gh api -X PUT repos/.../actions/permissions/workflow -f
+   default_workflow_permissions=write -F can_approve_pull_request_reviews=true`, with
+   Victor's go-ahead (a real permission escalation, not something to flip silently).
+
+**Real data findings from the first successful run's diff (PR #7)**, spot-checked
+before trusting per this doc's usual practice, not merged on faith:
+- `data/raw/games/games_accumulated.csv` dropped from 1521 to 468 rows — looked like
+  data loss at first glance. Turned out the file committed back in Phase 1.5 (`ae0b9df`)
+  had never actually been through `merge_into_accumulated_games`'s dedupe — 1521 raw
+  rows for only 436 truly unique games (~3.5x duplication, leftover from local-dev
+  scraping runs concatenated without dedup). Confirmed via key-set comparison: the new
+  436-unique-game core is a strict superset match of the old file's unique games, plus
+  32 genuinely new games from this run's fresh scrape. First real run through the dedup
+  path, working as designed — not a regression.
+- Three teams landed in `unresolved_teams.txt`; Victor reviewed each by hand (per
+  [[feedback_data_validation]]):
+  - **Botafogo Reptiles** — real team, but its salaooval.com.br page is currently 404.
+    Nothing to fix; correctly surfaces as unresolved until the page comes back.
+  - **São José WSI → Istepôs FA**: site page now redirects there. Checked for
+    head-to-head games first (per [[feedback_merge_verification]]) — none found across
+    either team's full game history, so aliased safely in `src/utils/team_aliases.py`.
+  - **Itapema White Sharks**: its page redirects to Istepôs FA too, but the two played
+    **5 real games against each other, 2012–2015** — merging would make the belt
+    algorithm treat a team as having played itself. Kept separate, added to
+    `team_aliases.py`'s "explicitly NOT merged" list alongside the other documented
+    predecessor-club cases (Curitiba Hurricanes/Predadores → Paraná HP, etc.).
+- **`Hor/Res == "00:00:0000:00"` means "not yet played"** (per Victor) — checked this
+  was already handled correctly, not a new bug: `__split_result_column` fails to
+  `int()`-parse it on both sides → both become `'X'` → `__remove_unplayed_matches`
+  drops any row where both sides are `'X'` before winner computation ever runs.
+
+**Confirmed working, not just assumed**: `peter-evans/create-pull-request`'s
+update-in-place behavior — a second dispatch after the data-alias fixes updated the
+same PR #7 (single commit, same PR number) rather than opening a duplicate.
+
+**Next actual step for this phase**: none — Phase 3 is done. The only carried-forward
+open item is restoring `schedule:` on `main`'s copy of the workflow once
+`create-data-pipeline` actually merges into `main` (see Phase 4's "is `main` really the
+deploy branch" question).
 
 ### Phase 4 — Fly.io deployment
 - New `backend/fly.toml`: Dockerfile build, `primary_region = "gru"` (São Paulo), a
@@ -1120,11 +1163,11 @@ understood, not chosen by default.
   Victor's direction, matches this doc's original Phase 3 suggestion. See Phase 3 below.
 - Confirm `main` is really the intended production/deploy-triggering branch (current
   working branch is `create-data-pipeline`; `main` is the repo's documented default) —
-  still open, needed for Phase 4, and now also for Phase 3's `schedule:` cron (see that
-  section's note on GitHub only firing `schedule:` from the default branch).
-- Get Victor's go-ahead to actually push and run Phase 3's workflow via
-  `workflow_dispatch` — still open, needed before Phase 3 can be trusted (see that
-  section's "not yet validated" list).
+  still open, needed for Phase 4, and now also for restoring Phase 3's `schedule:` cron
+  on `main` once `create-data-pipeline` merges for real (see that section's note).
+- ~~Get Victor's go-ahead to actually push and run Phase 3's workflow via
+  `workflow_dispatch`~~ **Resolved 2026-08-29**: done, validated end-to-end with real
+  runs, three bugs found and fixed. See Phase 3's real-validation writeup above.
 
 ## Critical files (once implementation starts)
 - `src/pipeline/tasks.py`, `src/pipeline/update_games.py` — games task functions + CLI
