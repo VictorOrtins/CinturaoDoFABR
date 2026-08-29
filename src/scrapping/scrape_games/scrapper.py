@@ -1,3 +1,4 @@
+import os
 from io import StringIO
 from typing import List, Optional
 
@@ -31,8 +32,16 @@ class GamesScrapper:
     def __init_driver(self):
         options = webdriver.ChromeOptions()
         options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
+        chrome_path = os.environ.get("CHROME_PATH")
+        chromedriver_path = os.environ.get("CHROMEDRIVER_PATH")
+
+        if chrome_path:
+            options.binary_location = chrome_path
+
         driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), options=options
+            service=Service(chromedriver_path or ChromeDriverManager().install()),
+            options=options,
         )
 
         self.driver = driver

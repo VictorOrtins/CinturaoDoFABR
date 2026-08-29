@@ -26,8 +26,22 @@ jobs:
           python-version: "3.12"
 
       - uses: browser-actions/setup-chrome@v1
+        id: setup-chrome
         with:
           chrome-version: stable
+          install-chromedriver: true
+
+      - name: Export Chrome/chromedriver paths
+        # webdriver_manager can't see browser-actions/setup-chrome's non-standard
+        # install path, so it falls back to fetching "latest" chromedriver - which
+        # drifted a full major version behind the "stable" Chrome actually installed
+        # here and made Chrome refuse to start (confirmed via a real failed run,
+        # see docs/DATA_PIPELINE.md Phase 3). Passing both paths explicitly skips
+        # that guesswork; src/scrapping/*/scrapper.py falls back to webdriver_manager
+        # when these env vars are unset, so local dev is unaffected.
+        run: |
+          echo "CHROME_PATH=${{ steps.setup-chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          echo "CHROMEDRIVER_PATH=${{ steps.setup-chrome.outputs.chromedriver-path }}" >> "$GITHUB_ENV"
 
       - name: Install pipeline + Airflow dependencies
         # Two separate installs, not combined - installing both in one `pip install`
