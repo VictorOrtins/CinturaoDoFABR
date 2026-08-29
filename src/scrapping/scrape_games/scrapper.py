@@ -39,6 +39,16 @@ class GamesScrapper:
         if chrome_path:
             options.binary_location = chrome_path
 
+        if os.environ.get("CI"):
+            # GitHub Actions runners have no display server - Chrome exits
+            # immediately on launch without --headless (confirmed via a real
+            # failed run, see docs/DATA_PIPELINE.md Phase 3). --no-sandbox and
+            # --disable-dev-shm-usage avoid separate known CI crashes (limited
+            # /dev/shm, sandbox init failing without a full user namespace).
+            options.add_argument("--headless=new")
+            options.add_argument("--no-sandbox")
+            options.add_argument("--disable-dev-shm-usage")
+
         driver = webdriver.Chrome(
             service=Service(chromedriver_path or ChromeDriverManager().install()),
             options=options,
