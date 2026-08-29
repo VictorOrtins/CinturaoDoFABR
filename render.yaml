@@ -1,0 +1,15 @@
+services:
+  - name: cinturaodofabr-backend
+    type: web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: BACKEND_CORS_ORIGINS
+        value: '["https://cinturaodofabr.pages.dev"]'
+      - key: OPENROUTER_API_KEY
+        sync: false

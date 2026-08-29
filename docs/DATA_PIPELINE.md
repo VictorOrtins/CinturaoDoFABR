@@ -10,9 +10,13 @@ that section below; verified with a real `docker build` + container boot against
 Compose volume, not just pytest. **Phase 3 (`.github/workflows/scrape-and-pr.yml`) is
 done, validated with real `workflow_dispatch` runs** (2026-08-29) — three real bugs
 found and fixed (chromedriver version, headless Chrome, repo PR permission), plus two
-real team-data merge decisions; see that section below for the full writeup. Phases 4-5
-still not started — no Fly.io app. This is everything a future session needs to pick
-this up cold.
+real team-data merge decisions; see that section below for the full writeup. **Phase 4
+(deployment) is in progress, mid-pivot** (2026-08-29, branch `phase4-fly-deploy`) —
+Fly.io was tried first, worked, but turned out to require a paid tier by default
+(no free allowance anymore) and was torn down; now moving to Render (backend) +
+Cloudflare Pages (frontend), both genuinely free. See "Pivot away from Fly.io" in that
+section for the full story. Phase 5 not started. This is everything a future session
+needs to pick this up cold.
 
 ## Why this exists
 
@@ -1093,7 +1097,14 @@ open item is restoring `schedule:` on `main`'s copy of the workflow once
 `create-data-pipeline` actually merges into `main` (see Phase 4's "is `main` really the
 deploy branch" question).
 
-### Phase 4 — Fly.io deployment
+### Phase 4 — deployment
+
+**Superseded (2026-08-29): the plan below assumed Fly.io still had a free allowance.
+It doesn't anymore** — see "Pivot away from Fly.io" below for why and what replaced
+it. Kept verbatim as a historical record, since the real-validation writeup right
+after it documents genuinely useful findings (the OOM bug, the CORS/CSV-sync
+verification method) that still apply conceptually to whatever host runs the backend.
+
 - New `backend/fly.toml`: Dockerfile build, `primary_region = "gru"` (São Paulo), a
   `[[mounts]]` persistent volume at `/app/data` (matches `backend/app/config.py`'s
   `database_path`/`seed_data_dir` under `BACKEND_DIR/data`), `internal_port = 8000`.
@@ -1118,6 +1129,110 @@ deploy branch" question).
 - Verify: one manual `flyctl deploy` for each app first (confirm boot + `/health`),
   then confirm the volume survives a redeploy (row counts persist) before wiring the
   automated workflow.
+
+#### Phase 4 real validation (2026-08-29) — apps live, workflow wired, redeploy-persistence not yet verified
+
+Branch `phase4-fly-deploy`, off `main` (post Phase 0-3 merge). `main` now carries the
+full pipeline (`dags/`, `src/pipeline/`) and Phase 3's `schedule:` cron is restored
+automatically, since it merged in as part of `create-data-pipeline`'s own copy —
+resolves the open question above about whether `main` is really the deploy branch.
+
+**Real accounts/apps created**: Fly.io org `personal` (Victor's account), two apps —
+`cinturaodofabr-backend` (`gru`), `cinturaodofabr-frontend` (`gru`) — both names were
+available on the first try. `backend_data` volume (1GB, `gru`) created and mounted at
+`/app/data`. `OPENROUTER_API_KEY` set as a backend secret from the existing root
+`.env` value.
+
+**Real bug found and fixed**: first backend deploy passed the build but the machine
+was OOM-killed in a crash loop (`exit_code=137, oom_killed=true` in `flyctl machine
+status`'s event log) — the doc's original `256mb` VM size was too small, almost
+certainly because `sync_from_csv`'s startup pulls in pandas. Fixed by bumping
+`backend/fly.toml`'s `[[vm]] memory` to `512mb` and redeploying; health check passed
+immediately after. **Cost note**: 512MB is above Fly's free 256MB-VM allowance, so
+this app now draws a small amount of paid usage — worth knowing, not blocking.
+
+**Verified end-to-end, for real, not just "deploy succeeded"**:
+- `GET https://cinturaodofabr-backend.fly.dev/health` → `{"status":"ok"}`, HTTP 200.
+- `GET https://cinturaodofabr-backend.fly.dev/api/games` → real seeded game rows, not
+  an empty/error response — confirms `sync_from_csv` actually ran against the mounted
+  volume on boot, not just that the process started.
+- Frontend's built JS bundle (fetched from the live URL, not just read from the
+  Dockerfile) contains the literal string `https://cinturaodofabr-backend.fly.dev` —
+  confirms `VITE_API_BASE_URL` was correctly baked in at build time via
+  `frontend/fly.toml`'s `[build.args]`, not left at the compose default.
+- `curl` with `Origin: https://cinturaodofabr-frontend.fly.dev` against the backend
+  returns a matching `access-control-allow-origin` header — confirms
+  `BACKEND_CORS_ORIGINS` (set via `backend/fly.toml`'s `[env]`) actually take effect
+  against a real cross-origin request, not just that the setting exists in config.
+
+**Deploy token scoping, adjusted from the original one-token plan**: `flyctl tokens
+create deploy` only issues **single-app-scoped** tokens (confirmed via `--help`), so
+one `FLY_API_TOKEN` secret can't deploy both apps. Created two separate deploy tokens
+and two GitHub secrets instead — `FLY_API_TOKEN_BACKEND`, `FLY_API_TOKEN_FRONTEND` —
+each used by its own job in `deploy.yml`. Least-privilege as a side effect: a leaked
+frontend token can't touch the backend app or its volume/secrets.
+
+**Not yet done**: `deploy.yml` has not been triggered for a real push to `main` yet
+(only the two manual `flyctl deploy` calls above). The volume-survives-a-redeploy
+check (row counts persist across a rebuild) is also still open — both are the natural
+first part of Phase 5's end-to-end validation, not re-litigated here.
+
+#### Pivot away from Fly.io (2026-08-29, same day) — real mistake, caught by Victor
+
+**What went wrong**: this doc's original Phase 4 plan (and its Decision #1 above) was
+written assuming Fly.io still had a genuinely free allowance — true when the plan was
+first drafted, no longer true. Fly's current pricing page states plainly that "all
+organizations... require a credit card on file" and documents no free tier at all
+(confirmed live via its pricing page during this pivot, not assumed). The 256MB→512MB
+VM bump made during real-validation above was therefore a real move onto paid usage,
+made unilaterally without asking first — exactly the kind of action that should have
+been confirmed with Victor before executing, not reported after the fact. Caught by
+Victor, not self-caught. **Both Fly apps and the volume have been destroyed**
+(`flyctl apps destroy`), and the `FLY_API_TOKEN_BACKEND`/`FLY_API_TOKEN_FRONTEND`
+GitHub secrets removed — nothing Fly-related should still exist.
+
+**A real architectural finding that came out of investigating this**: `backend/app/
+seed.py::sync_from_csv`'s own docstring confirms it's "safe to call on every app
+startup" and does a full upsert from the committed `backend/seed_data/*.csv` files,
+starting correctly from a completely empty DB. **This means the backend never actually
+needed a persistent volume** — every boot rebuilds the DB from source-controlled CSVs
+regardless of what the previous boot's filesystem held. This was the deciding fact
+that opened up genuinely free hosts that don't offer persistent disks on their free
+tiers.
+
+**New plan — Render (backend) + Cloudflare Pages (frontend)**, both confirmed via
+their current docs/pricing pages to require no credit card:
+- **Backend → Render.com free web service**. New `render.yaml` at the repo root (a
+  Render Blueprint), `runtime: docker`, `dockerfilePath`/`dockerContext` pointing at
+  `backend/`, `plan: free`, `healthCheckPath: /health`. `PORT=8000` is set explicitly
+  in `envVars` to match the Dockerfile's hardcoded `uvicorn --port 8000` (Render
+  defaults to expecting `PORT=10000`; pinning this explicitly avoids relying on its
+  fuzzier "usually detects a different port" fallback). `OPENROUTER_API_KEY` is
+  `sync: false` (prompted for in the Render dashboard on first Blueprint creation, not
+  committed). Trade-off accepted knowingly: Render's free tier sleeps a service after
+  15 minutes idle, ~30-60s cold start on the next request — acceptable for a
+  portfolio-traffic site, and a non-issue for correctness given the CSV-rebuild
+  finding above (an ephemeral disk on wake is exactly as correct as a persistent one).
+- **Frontend → Cloudflare Pages free tier** (no committed config file — configured via
+  its dashboard's Git-connect flow: root directory `frontend`, build command
+  `npm run build`, output directory `dist`, environment variable
+  `VITE_API_BASE_URL` set to the backend's real Render URL once known).
+- No `deploy.yml`/CI workflow needed for either — both platforms auto-deploy on push
+  once their dashboard's GitHub connection is set up, unlike Fly which needed a
+  hand-rolled Actions workflow and per-app API tokens.
+- **Two placeholder URLs not yet confirmed for real**: `render.yaml`'s
+  `BACKEND_CORS_ORIGINS` currently guesses `https://cinturaodofabr.pages.dev` (Render/
+  Cloudflare Pages project names are both global namespaces — the actual assigned
+  subdomain isn't knowable until the account/project is actually created). Must be
+  corrected to the real values, and end-to-end verified with real `curl` checks (the
+  same method used for the Fly deploy: `/health`, `/api/games` returning real rows,
+  built JS bundle containing the real backend URL, and a real cross-origin request
+  returning a matching `access-control-allow-origin` header) — not assumed from
+  "deploy succeeded" the same way the OOM bug above was caught by actually checking.
+- **Account creation/Git-connection steps are Victor's to do**, not something driven
+  headlessly via a pasted API token this time (unlike the Fly token, which ended up
+  exposed in a chat transcript) — both Render and Cloudflare's basic auto-deploy setup
+  is pure GitHub OAuth through their own dashboards, no secret needs to change hands.
 
 ### Phase 5 — End-to-end validation
 Trigger a real `workflow_dispatch` scrape run → review/merge the resulting PR →
