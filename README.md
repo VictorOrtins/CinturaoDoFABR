@@ -8,11 +8,14 @@
 
 3. **Análises relacionadas**: Além disso, serão feitas diversas análises sobre o cinturão, quem mais esteve com sua posse, quem mais desafiou o campeão, em conjunto com outras análises a definir.
 
-4. **Criação de Web App**: Será feito um aplicativo para browsers para mostrar os resultados ao público.
+4. **Criação de Web App**: Será feito um aplicativo para browsers para mostrar os resultados ao público. Em primeira instância, esse app foi feito em Streamlit. Com a evolução do projeto, foi separado em backend (Python, FastAPI) e Frontend (React + Vite + TypeScript)
+
+5. **Pipeline de atualização**: Para que o site não seja estático e necessite de atualizações manuais todas as vezes que uma nova partida ocorra no FABR, foram definidos Github Actions que refazem o scraping de dados a partir de uma certa data e atualizam os resultados do cinturão. A orquestração do pipeline é feito com Airflow
+
+6. **Deploy**: Deploy do Website com o Frontend sendo servido no Cloudfare e o Backend no Render
 
 ## Estrutura do Projeto
 
-- **`app/`**: Protótipo do aplicativo web utilizando Streamlit (mantido como referência).
 - **`backend/`**: API do V1, em FastAPI (uv project) com um banco SQLite temporário,
   sincronizado a partir dos CSVs em `backend/seed_data/` (schema gerenciado via Alembic).
 - **`frontend/`**: Aplicativo web do V1, em React + Vite + TypeScript.
