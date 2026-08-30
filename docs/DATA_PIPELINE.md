@@ -11,12 +11,16 @@ Compose volume, not just pytest. **Phase 3 (`.github/workflows/scrape-and-pr.yml
 done, validated with real `workflow_dispatch` runs** (2026-08-29) — three real bugs
 found and fixed (chromedriver version, headless Chrome, repo PR permission), plus two
 real team-data merge decisions; see that section below for the full writeup. **Phase 4
-(deployment) is in progress, mid-pivot** (2026-08-29, branch `phase4-fly-deploy`) —
-Fly.io was tried first, worked, but turned out to require a paid tier by default
-(no free allowance anymore) and was torn down; now moving to Render (backend) +
-Cloudflare Pages (frontend), both genuinely free. See "Pivot away from Fly.io" in that
-section for the full story. Phase 5 not started. This is everything a future session
-needs to pick this up cold.
+(deployment) is functionally done** (2026-08-29) — Fly.io was tried first, worked, but
+turned out to require a paid tier by default (no free allowance anymore) and was torn
+down; pivoted to Render (backend) + Cloudflare Pages/Workers (frontend), both
+genuinely free, both live and verified end-to-end including the OpenRouter assistant
+route. See "Pivot away from Fly.io" and "Phase 4 real validation on Render +
+Cloudflare" in that section for the full story, including two real bugs found via
+actual browser/dashboard errors, not guessed. **One item left**: both platforms
+currently deploy from `phase4-fly-deploy` instead of `main` — merging that branch and
+re-pointing both platforms' production branch to `main` is in progress. Phase 5 not
+started. This is everything a future session needs to pick this up cold.
 
 ## Why this exists
 
@@ -1234,10 +1238,59 @@ their current docs/pricing pages to require no credit card:
   exposed in a chat transcript) — both Render and Cloudflare's basic auto-deploy setup
   is pure GitHub OAuth through their own dashboards, no secret needs to change hands.
 
+#### Phase 4 real validation on Render + Cloudflare (2026-08-29) — both live, verified for real
+
+Both apps are up and confirmed working end-to-end, not just "deploy succeeded":
+- Backend: `https://cinturaodofabr-backend.onrender.com` — `/health` 200,
+  `/api/games` and `/api/cinturao/current` both return real data.
+- Frontend: `https://cinturaodofabr.ortinsv1.workers.dev` — loads and actually
+  displays games/current-champion data in a real browser, confirmed by Victor.
+- The `/api/assistant` (OpenRouter-backed) route was exercised live on the real site
+  by Victor and works — the one part of the backend none of the `curl` checks above
+  touch, so this closes the last real gap in "is the backend actually fully working."
+
+**A second real product-surface surprise, same category as the Fly free-tier one**:
+Cloudflare has folded plain "Pages" into "Workers with static assets" — the dashboard
+no longer shows a git-branch/framework-preset picker on the initial "Create Worker"
+screen (that's a different, template-based flow entirely). The actual path is
+**"Import a repository"** from the Workers & Pages overview, and a pure static site
+needs a `frontend/wrangler.toml` with an `[assets] directory = "./dist"` block rather
+than a simple dashboard "output directory" field. Once imported, branch/build
+settings live under the project's **Settings → Build**, and that screen's "Deploy
+command"/"Version command" fields needed explicit values typed in
+(`npx wrangler deploy` / `npx wrangler versions upload`) — leaving them blank didn't
+save, unlike Render's optional fields.
+
+**Real bug found and fixed via an actual browser error, not guessed**: the frontend
+ended up published at a `*.workers.dev` subdomain
+(`cinturaodofabr.ortinsv1.workers.dev`), not the `*.pages.dev` guess `render.yaml`'s
+`BACKEND_CORS_ORIGINS` originally shipped with — global project-name namespaces on
+both platforms mean the real subdomain genuinely isn't knowable until the project is
+created. Caught via a real cross-origin error in Victor's browser console ("Requisição
+cross-origin bloqueada... falta cabeçalho 'Access-Control-Allow-Origin'"), fixed by
+updating `render.yaml` to the real origin and pushing — confirmed Render's Blueprint
+auto-sync picks up an `envVars` change on a push and redeploys without any manual
+dashboard step, verified by polling the live CORS header until it flipped to the
+correct value (took a few minutes, a normal Docker-rebuild delay, not a stuck sync).
+
+**One thing genuinely left, not yet done**: both Render's production branch and
+Cloudflare's build branch are currently set to **`phase4-fly-deploy`**, not `main` —
+meaning right now a push to that feature branch deploys straight to production with
+no review step, unlike every other part of this pipeline (the scrape workflow always
+goes through a PR first). Victor is handling the merge of `phase4-fly-deploy` → `main`
+and re-pointing both platforms' production/build branch to `main` himself. Once that's
+done, Phase 4 is fully done — no code or config changes are needed for it beyond that
+branch switch.
+
 ### Phase 5 — End-to-end validation
-Trigger a real `workflow_dispatch` scrape run → review/merge the resulting PR →
-confirm `deploy.yml` fires → confirm the live backend's `/api/games`/`/health`
-reflect the new data with no manual reseed step.
+Trigger a real `workflow_dispatch` scrape run → review/merge the resulting PR (now
+targeting `main`, once Phase 4's branch switch above is done) → confirm Render and
+Cloudflare both auto-redeploy from that merge (no `deploy.yml`/CI workflow needed,
+unlike the original Fly-based plan) → confirm the live backend's `/api/games`/
+`/health` and the live frontend actually reflect the new data, with zero manual
+reseed step anywhere in the chain. This is the moment the whole initiative's actual
+point (a real, recurring, automated pipeline — not a static portfolio page, see "Why
+this exists" above) gets proven end-to-end for the first time.
 
 ## Future upgrade path (not now — only if it ever becomes worth the cost)
 
