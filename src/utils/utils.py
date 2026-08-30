@@ -49,7 +49,13 @@ def get_dominant_color(
         return s
 
     def _k_means_dominant_color(pixels: np.ndarray, k: int):
-        kmeans = KMeans(n_clusters=k, n_init=10)
+        # Fixed seed: without it, KMeans's random centroid init makes the
+        # winning cluster's averaged RGB drift by ~1 per channel between
+        # re-scrapes of the same unchanged logo image, manufacturing spurious
+        # teams.csv diffs on every scheduled scrape (found via a real Phase 5
+        # end-to-end run, 2026-08-30 - 16 teams' colors jittered with zero
+        # actual logo changes).
+        kmeans = KMeans(n_clusters=k, n_init=10, random_state=0)
         kmeans.fit(pixels)
         counts = np.bincount(kmeans.labels_, minlength=k)
         # Weight by saturation so a small but clearly-branded-colored cluster beats
