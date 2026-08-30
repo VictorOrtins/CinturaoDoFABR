@@ -112,12 +112,14 @@ third-party site (salaooval.com.br) via Selenium and is slow/fragile; re-running
 out of scope unless a future ticket specifically asks for it.
 
 **Known data-quality gap, now closed by Phase 2 (2026-08-28)**: `backend/seed_data/*.csv`
-still has a handful of team names with no resolvable page on the source site
-(`Itapema White Sharks`, `São José WSI` x2, `Botafogo Reptiles` — the last confirmed via
-a live 404, a missing-page problem, not a name-mismatch one) — but these no longer cause
-lost games; `sync_from_csv` auto-creates a placeholder `Team` for each instead of
-skipping (see above). `backend/tests/test_seed.py` locks in that every row in
-`games.csv` produces a `Game`, replacing the old skip-count regression test.
+still has a couple of team names with no resolvable page on the source site
+(`Itapema White Sharks`, `Botafogo Reptiles` — the latter confirmed via a live 404, a
+missing-page problem, not a name-mismatch one; `São José WSI` was resolved via a
+`team_aliases.py` merge into `Istepôs FA` during Phase 3's real validation, 2026-08-29)
+— but these no longer cause lost games; `sync_from_csv` auto-creates a placeholder
+`Team` for each instead of skipping (see above). `backend/tests/test_seed.py` locks in
+that every row in `games.csv` produces a `Game`, replacing the old skip-count
+regression test.
 
 ### Pipeline orchestration (Airflow + GitHub Actions)
 
@@ -128,7 +130,15 @@ run via `airflow dags test` rather than a persistent scheduler/webserver — see
 comes from `.github/workflows/scrape-and-pr.yml`'s `schedule: cron` (weekly, Monday
 06:00 UTC), not Airflow's own scheduler; that workflow opens a PR with the regenerated
 data for human review and never touches production directly — merging to `main` is what
-eventually triggers a redeploy (Phase 4, not built yet) that syncs the new data live.
+triggers a redeploy that syncs the new data live. **Deployment is built and live**
+(Phase 4, done 2026-08-29): backend on Render (`render.yaml`, free web service, no
+persistent volume needed since `sync_from_csv` rebuilds the DB from the committed CSVs
+on every boot), frontend on Cloudflare Workers/static-assets (`frontend/wrangler.toml`).
+Both auto-deploy straight from a push to `main` — no custom CI workflow needed for
+deploy itself, unlike the scrape side. See `docs/DATA_PIPELINE.md`'s Phase 4/5 sections
+for the full validation writeup, including a real non-deterministic-color bug
+(`src/utils/utils.py`'s `KMeans` needed a fixed `random_state`) caught via a live
+end-to-end test.
 
 Two gotchas confirmed the hard way while building this — easy to reintroduce if this
 area gets touched again:

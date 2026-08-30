@@ -17,10 +17,13 @@ down; pivoted to Render (backend) + Cloudflare Pages/Workers (frontend), both
 genuinely free, both live and verified end-to-end including the OpenRouter assistant
 route. See "Pivot away from Fly.io" and "Phase 4 real validation on Render +
 Cloudflare" in that section for the full story, including two real bugs found via
-actual browser/dashboard errors, not guessed. **One item left**: both platforms
-currently deploy from `phase4-fly-deploy` instead of `main` — merging that branch and
-re-pointing both platforms' production branch to `main` is in progress. Phase 5 not
-started. This is everything a future session needs to pick this up cold.
+actual browser/dashboard errors, not guessed. Both platforms now deploy from `main`.
+**Phase 5 (end-to-end validation) is done** (2026-08-30) — a real scrape run correctly
+found zero new games, and along the way caught and fixed a genuine bug (non-
+deterministic team logo colors from an unseeded `KMeans`). The full loop (scrape → PR
+→ review → merge → auto-redeploy → live site updates) is proven end-to-end for real;
+see "Phase 5 real validation" in that section. **All five phases of this initiative
+are now done.** This is everything a future session needs to pick this up cold.
 
 ## Why this exists
 
@@ -1273,16 +1276,13 @@ auto-sync picks up an `envVars` change on a push and redeploys without any manua
 dashboard step, verified by polling the live CORS header until it flipped to the
 correct value (took a few minutes, a normal Docker-rebuild delay, not a stuck sync).
 
-**One thing genuinely left, not yet done**: both Render's production branch and
-Cloudflare's build branch are currently set to **`phase4-fly-deploy`**, not `main` —
-meaning right now a push to that feature branch deploys straight to production with
-no review step, unlike every other part of this pipeline (the scrape workflow always
-goes through a PR first). Victor is handling the merge of `phase4-fly-deploy` → `main`
-and re-pointing both platforms' production/build branch to `main` himself. Once that's
-done, Phase 4 is fully done — no code or config changes are needed for it beyond that
-branch switch.
+**Update: done.** Victor merged `phase4-fly-deploy` → `main` (PR #10) and re-pointed
+both Render's production branch and Cloudflare's build branch to `main`. Confirmed via
+`git ls-tree origin/main` (has `render.yaml`/`frontend/wrangler.toml`) and a live
+`curl` health check against both apps right after the switch. **Phase 4 is fully
+done.**
 
-### Phase 5 — End-to-end validation
+### Phase 5 — End-to-end validation — **DONE (2026-08-30)**
 Trigger a real `workflow_dispatch` scrape run → review/merge the resulting PR (now
 targeting `main`, once Phase 4's branch switch above is done) → confirm Render and
 Cloudflare both auto-redeploy from that merge (no `deploy.yml`/CI workflow needed,
@@ -1291,6 +1291,56 @@ unlike the original Fly-based plan) → confirm the live backend's `/api/games`/
 reseed step anywhere in the chain. This is the moment the whole initiative's actual
 point (a real, recurring, automated pipeline — not a static portfolio page, see "Why
 this exists" above) gets proven end-to-end for the first time.
+
+#### Phase 5 real validation (2026-08-30)
+
+**The merge → auto-redeploy leg was tested with a synthetic canary first**, since
+there was no real new game to test with (the belt had already changed hands the week
+before, and Phase 3's validation run already captured it — confirmed via
+`backend/seed_data/games.csv`'s last row before starting). A deliberately reversible
+change (one team's `Cor Primária`, one old game's score with the winner left
+unaffected) was opened as PR #11, merged, and verified live via `curl` against the
+real endpoints — confirming Render's Blueprint auto-sync picks up a `main` merge and
+`sync_from_csv` re-runs correctly, with zero manual reseed step. Reverted via PR #12.
+
+**The real scrape leg was then triggered for real** (`gh workflow run
+scrape-and-pr.yml --ref main`) and succeeded, correctly finding **zero new games** —
+proof the pipeline doesn't manufacture a spurious PR when nothing actually changed,
+not just a null result. (One earlier dispatch attempt failed with a transient
+`ConnectTimeout` to `www.salaooval.com.br` itself — the scrape site being briefly
+unreachable, not a code bug; it had already finished before the successful run
+started, so no concurrent-crawl collision per the known risk noted in the Phase 1
+slug-audit section above.)
+
+**A real, previously-unknown bug was found via this run, not guessed**: the resulting
+PR #13 showed 16 teams' logo colors each shifted by a small amount, despite no real
+logo changes. Root cause: `src/utils/utils.py`'s `_k_means_dominant_color` called
+`KMeans(n_clusters=k, n_init=10)` with **no `random_state`** — the winning cluster's
+averaged color drifts between runs on the same unchanged image; for a couple of teams
+(e.g. `Madkings FA`, `#f39c0e` → `#305569`) the drift was large enough to flip to a
+genuinely different competing color cluster, not just ±1 jitter. This would have
+manufactured a spurious noisy diff on every future scheduled scrape, undermining the
+PR-review step (a human reviewer tunes out large diffs that always turn out to be
+nothing). Fixed by pinning `random_state=0`; all 409 teams' colors were recomputed
+against the fix via the existing `reconcile_teams_csv` pipeline function (not a new
+one-off script for the merge logic, just for re-triggering the color computation) —
+20 genuinely changed vs. their prior non-deterministic values. Verified: `git diff
+origin/main origin/automated-data-update` showed *only* the color fix and the 16 real
+color corrections once done (confirmed `games.csv` had zero diff, i.e. truly no new
+games); the pipeline test suite ran clean (32/33 — the one failure was a pre-existing
+local `~/airflow/airflow.db` migration gap unrelated to this change, confirmed by
+checking `AIRFLOW_HOME`/the DB file directly rather than assumed, and irrelevant to
+CI which always runs against a fresh DB). Merged as PR #13; the fix was independently
+confirmed live afterward via `curl` against `/api/teams` for the flipped-color team,
+not just trusted from Victor's own check.
+
+**Result: the full loop is proven for real**, start to finish — scrape (or in this
+case, correctly finding nothing to scrape) → PR → review → merge to `main` → both
+Render and Cloudflare auto-redeploy → live site reflects the change, with a genuine
+bug caught and fixed along the way rather than a clean pass that would have proven
+less. This closes the data-pipeline initiative's original goal (see "Why this exists"
+above): a real, recurring, automated pipeline demonstrably works end-to-end, not just
+each phase in isolation.
 
 ## Future upgrade path (not now — only if it ever becomes worth the cost)
 
