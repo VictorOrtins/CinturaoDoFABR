@@ -41,7 +41,7 @@
 - **`README.md`**: Documento explicativo do repositório (você está aqui).
 - **`requirements.txt`**: Dependências utilizadas no projeto (scraping/preprocessing/algoritmo).
 - **`requirements-airflow.txt`**: Dependência do Airflow — **instalar separadamente**
-  de `requirements.txt` (ver comentário no próprio arquivo para o motivo e o comando exato).
+  de `requirements.txt`.
 
 
 Instale as dependências com:
